@@ -1,0 +1,10 @@
+name = "Npy"
+uuid = "9d25cb4c-9dc9-11e9-18f5-3f5dc6fdeae0"
+authors = ["Lukas Himbert <lukas@2.71828.eu>"]
+version = "0.1.0"
+
+[deps]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[compat]
+julia = "1"

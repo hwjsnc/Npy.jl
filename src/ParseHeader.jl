@@ -165,7 +165,7 @@ function parseuint(s, offset)
       end
     end
   end
-  return (length(s), parse(BigInt, s[off:length(s)]))
+  return (length(s)+1, parse(BigInt, String(s[off:length(s)])))
 end
 
 

@@ -1,7 +1,7 @@
 module Npy
 
 
-include("ParseHeader.jl")
+include("Header.jl")
 # TODO: error message: "Error while parsing file header: $err.val at offset $err.offset"
 
 

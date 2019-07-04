@@ -1,14 +1,14 @@
 """
-Parse an .npy header
+Parse or write an .npy header
 
 Note:
  - The parser assumes ASCII encoding and does not handle escape sequences (which is ok for .npy)
  - Performance is not necessary for this function, since .npy header dictionaries are very small.
  - All functions return either a tuple (remaining input, result) on success, or a tuple (original input, err-struct) on failure, unless noted otherwise.
 """
-module ParseHeader
+module Header
 
-export Error, parseheader
+export Error, parseheader, writeheader
 
 
 struct Error
@@ -20,7 +20,7 @@ end
 @enum Endianness BigEndian LittleEndian NoEndian
 
 
-struct Header
+struct NpyHeader
   data_offset :: Int64
   shape :: Array{Int64,1}
   size :: Int64
@@ -33,7 +33,7 @@ end
 """`parseheader(s)`
 
 Parses the .npy header.
-Returns a tuple (data_offset, header_dict :: Header) on success, (error_offset, error :: Error) on failure.
+Returns a tuple (data_offset, header_dict :: NpyHeader) on success, (error_offset, error :: Error) on failure.
 Entries of the header
 """
 function parseheader(s)
@@ -55,7 +55,7 @@ function parseheader(s)
   for k in ["descr", "fortran_order", "shape"]
     haskey(dict, Array{UInt8,1}(k)) || return Error(offset, "Header dict is missing key $k.")
   end
-  return Header(offset+headersize, dict[b"shape"], prod(dict[b"shape"]), dict[b"descr"][2], dict[b"descr"][1], dict[b"fortran_order"])
+  return NpyHeader(offset+headersize, dict[b"shape"], prod(dict[b"shape"]), dict[b"descr"][2], dict[b"descr"][1], dict[b"fortran_order"])
 end
 
 

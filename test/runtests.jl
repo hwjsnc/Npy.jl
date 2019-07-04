@@ -7,10 +7,10 @@ using Test
 
 @testset "Test header parser" begin
   function iserror(tup, off)
-    return tup[1] == off && typeof(tup[2]) == Npy.ParseHeader.Error
+    return tup[1] == off && typeof(tup[2]) == Npy.Header.Error
   end
   @testset "Test parsestring" begin
-    using Npy.ParseHeader: parsestring
+    using Npy.Header: parsestring
     @test parsestring(b"\"hello, world!\"", 1) == (16, b"hello, world!")
     @test parsestring(b"'hello, world!'", 1) == (16, b"hello, world!")
     @test iserror(parsestring(b"'hello, world!", 1), 1)
@@ -22,14 +22,14 @@ using Test
     @test iserror(parsestring(b"lotsofjunk'abc", 11), 11)
   end
   @testset "Test parsebool" begin
-    using Npy.ParseHeader: parsebool
+    using Npy.Header: parsebool
     @test parsebool(b"somejunk: True, morejunk", 11) == (15, true)
     @test parsebool(b"somejunk: False, morejunk", 11) == (16, false)
     @test iserror(parsebool(b"somejunk: true, morejunk", 11), 11)
     @test iserror(parsebool(b"somejunk: false, morejunk", 11), 11)
   end
   @testset "Test parseuint" begin
-    using Npy.ParseHeader: parseuint
+    using Npy.Header: parseuint
     for i in 0:100
       @test parseuint(Array{UInt8,1}("junk $i morejunk"), 6) == (length("$i")+6, i)
     end
@@ -45,7 +45,7 @@ using Test
     @test parseuint(Array{UInt8,1}("$x"), 1) == (length("$x")+1, x)
   end
   @testset "Test parseuinttuple" begin
-    using Npy.ParseHeader: parseuinttuple
+    using Npy.Header: parseuinttuple
     @test parseuinttuple(b"()", 1) == (3, BigInt[])
     @test parseuinttuple(b"(42)", 1) == (5, BigInt[42])
     @test parseuinttuple(b"(42,)", 1) == (6, BigInt[42])
@@ -57,7 +57,7 @@ using Test
     @test iserror(parseuinttuple(b"(1, 2, true, 4)", 1), 1)
   end
   @testset "Test parsedescr" begin
-    using Npy.ParseHeader: parsedescr, Error
+    using Npy.Header: parsedescr, Error
     @test typeof(parsedescr("|O3", 1)) == Error
     @test typeof(parsedescr("|S3", 1)) == Error
     @test typeof(parsedescr("=f8", 1)) == Error
@@ -65,7 +65,7 @@ using Test
     # TODO: exhaustively test dtypes
   end
   @testset "Test parsepair" begin
-    using Npy.ParseHeader: parsepair, Endianness, LittleEndian, BigEndian, NoEndian
+    using Npy.Header: parsepair, Endianness, LittleEndian, BigEndian, NoEndian
     @test parsepair(b"junk: 'fortran_order': True morejunk", 7) == (28, b"fortran_order" => true)
     @test parsepair(b"junk: \"fortran_order\": False, morejunk", 7) == (29, b"fortran_order" => false)
     @test iserror(parsepair(b"'fortran_order': 'True'", 1), 1)
@@ -79,6 +79,6 @@ using Test
     @test parsepair(b"'descr': \">c8\"", 1) == (15, b"descr" => (BigEndian, Complex{Float32}))
     @test iserror(parsepair(b"abc 'descr': True,", 5), 5)
   end
-  @test Npy.ParseHeader.parsedict(b"{'descr': '>f8', 'fortran_order': False, 'shape': (1,2,6,24,120,720,5040)}") == Dict(b"descr" => (Npy.ParseHeader.BigEndian, Float64), b"fortran_order" => false, b"shape" => collect(factorial(i) for i in 1:7))
-  @test Npy.ParseHeader.parsedict(b"{ 'shape': (2,3,),    'descr':'|b1', \t'fortran_order': \nTrue,}") == Dict(b"descr" => (Npy.ParseHeader.NoEndian, Bool), b"fortran_order" => true, b"shape" => BigInt[2, 3])
+  @test Npy.Header.parsedict(b"{'descr': '>f8', 'fortran_order': False, 'shape': (1,2,6,24,120,720,5040)}") == Dict(b"descr" => (Npy.Header.BigEndian, Float64), b"fortran_order" => false, b"shape" => collect(factorial(i) for i in 1:7))
+  @test Npy.Header.parsedict(b"{ 'shape': (2,3,),    'descr':'|b1', \t'fortran_order': \nTrue,}") == Dict(b"descr" => (Npy.Header.NoEndian, Bool), b"fortran_order" => true, b"shape" => BigInt[2, 3])
 end

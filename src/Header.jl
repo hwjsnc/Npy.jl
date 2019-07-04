@@ -43,7 +43,7 @@ function parseheader(s)
   version[1] in [1, 2] || return Error(7, "Unknown major version $version")
   version[2] == 0 || return Error(8, "Unknown minor version $version")
   if version[1] == 1
-    headersize = Int16(s[9]) + Int16(s[10] << 8)
+    headersize = Int16(s[9]) + Int16(s[10]) << 8
     offset = 11
   elseif version[1] == 2
     headersize = Int32(s[9]) + Int32(s[10] << 8) + Int32(s[11] << 16) + Int32(s[12] << 24)

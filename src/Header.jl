@@ -256,7 +256,7 @@ function parsedescr(s, off)
   typeof(datatype) != Error || return datatype
   endianness = get(endiannesses, Char(s[1]), Error(off, "npy.jl BUG: unknown endianness '$(Char(s[1]))'"))
   typeof(endianness) != Error || return endianness
-  endianness != NoEndian || datatype in [Bool, UInt8, Int8] || return Error(off, "dtype is $(String(s[2:end])), but no endianness is given")
+  endianness != NoEndian || sizeof(datatype) == 1 || return Error(off, "dtype is $(String(s[2:end])), but no endianness is given")
   return (endianness, datatype)
 end
 

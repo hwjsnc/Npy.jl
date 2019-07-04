@@ -261,4 +261,43 @@ function parsedescr(s, off)
 end
 
 
+function writeheader(endianness :: Endianness, datatype :: DataType, shape, fortran_order :: Bool)
+  endiannesses = Dict(
+    BigEndian => '>',
+    LittleEndian => '<',
+    NoEndian => '|',
+  )
+  datatypes = Dict(
+    Bool => "b1",
+    Int8 => "i1",
+    Int16 => "i2",
+    Int32 => "i4",
+    Int64 => "i8",
+    UInt8 => "u1",
+    UInt16 => "u2",
+    UInt32 => "u4",
+    UInt64 => "u8",
+    Float32 => "f4",
+    Float64 => "f8",
+    Complex{Float32} => "c8",
+    Complex{Float64} => "c16",
+  )
+  tuplestring = string("(", join(shape, ", "), ")")
+  fortran_order_string = if fortran_order; "True"; else "False"; end
+  dictstring = Array{UInt8,1}("{'descr': '$(endiannesses[endianness])$(datatypes[datatype])', 'fortran_order': $(fortran_order_string), 'shape': $(tuplestring)}")
+  length(dictstring) < 2^16 - 16 || error("For some unfathomable reason, the size of the header string exceeds 4 KiB.")
+  if (length(dictstring) + 11) % 16 != 0 # Note: 11 = length(preheaderstring) + length(b"\n")
+    padding = repeat(b" ", 16 - (length(dictstring) + 11) % 16)
+  else
+    padding = b""
+  end
+  headersize = length(dictstring) + length(padding) + 1
+  preheaderstring = cat(b"\x93NUMPY\x01\x00", UInt8[headersize & 255, headersize >> 8], dims=1)
+  ret = cat(preheaderstring, dictstring, padding, b"\n", dims=1)
+  @assert length(ret) % 16 == 0
+  @assert length(ret) < 2^16
+  return ret
+end
+
+
 end

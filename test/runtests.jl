@@ -56,12 +56,12 @@ using Test
     @test iserror(parseuinttuple(b"(1, 2, 'xyz', 4)", 1), 1)
     @test iserror(parseuinttuple(b"(1, 2, true, 4)", 1), 1)
   end
-  @testset "Test parsedtype" begin
-    using Npy.ParseHeader: parsedtype, Error
-    @test typeof(parsedtype("|O3", 1)) == Error
-    @test typeof(parsedtype("|S3", 1)) == Error
-    @test typeof(parsedtype("=f8", 1)) == Error
-    @test typeof(parsedtype(">f5", 1)) == Error
+  @testset "Test parsedescr" begin
+    using Npy.ParseHeader: parsedescr, Error
+    @test typeof(parsedescr("|O3", 1)) == Error
+    @test typeof(parsedescr("|S3", 1)) == Error
+    @test typeof(parsedescr("=f8", 1)) == Error
+    @test typeof(parsedescr(">f5", 1)) == Error
     # TODO: exhaustively test dtypes
   end
   @testset "Test parsepair" begin
@@ -74,11 +74,11 @@ using Test
     @test parsepair(b"'shape': (42)", 1) == (14, b"shape" => BigInt[42])
     @test parsepair(b"'shape': (42,)", 1) == (15, b"shape" => BigInt[42])
     @test iserror(parsepair(b"abc 'shape': 'xyz' def", 5), 5)
-    @test parsepair(b"'dtype': \"|b1\"", 1) == (15, b"dtype" => (NoEndian, Bool))
-    @test parsepair(b"'dtype': \"<u2\"", 1) == (15, b"dtype" => (LittleEndian, UInt16))
-    @test parsepair(b"'dtype': \">c8\"", 1) == (15, b"dtype" => (BigEndian, Complex{Float32}))
-    @test iserror(parsepair(b"abc 'dtype': True,", 5), 5)
+    @test parsepair(b"'descr': \"|b1\"", 1) == (15, b"descr" => (NoEndian, Bool))
+    @test parsepair(b"'descr': \"<u2\"", 1) == (15, b"descr" => (LittleEndian, UInt16))
+    @test parsepair(b"'descr': \">c8\"", 1) == (15, b"descr" => (BigEndian, Complex{Float32}))
+    @test iserror(parsepair(b"abc 'descr': True,", 5), 5)
   end
-  @test Npy.ParseHeader.parsedict(b"{'dtype': '>f8', 'fortran_order': False, 'shape': (1,2,6,24,120,720,5040)}", 1) == (75, Dict(b"dtype" => (Npy.ParseHeader.BigEndian, Float64), b"fortran_order" => false, b"shape" => collect(factorial(i) for i in 1:7)))
-  @test Npy.ParseHeader.parsedict(b"{ 'shape': (2,3,),    'dtype':'|b1', \t'fortran_order': \nTrue,}", 1) == (63, Dict(b"dtype" => (Npy.ParseHeader.NoEndian, Bool), b"fortran_order" => true, b"shape" => BigInt[2, 3]))
+  @test Npy.ParseHeader.parsedict(b"{'descr': '>f8', 'fortran_order': False, 'shape': (1,2,6,24,120,720,5040)}") == Dict(b"descr" => (Npy.ParseHeader.BigEndian, Float64), b"fortran_order" => false, b"shape" => collect(factorial(i) for i in 1:7))
+  @test Npy.ParseHeader.parsedict(b"{ 'shape': (2,3,),    'descr':'|b1', \t'fortran_order': \nTrue,}") == Dict(b"descr" => (Npy.ParseHeader.NoEndian, Bool), b"fortran_order" => true, b"shape" => BigInt[2, 3])
 end

@@ -42,43 +42,38 @@ function parseheader(s)
   version = (s[7], s[8])
   version[1] in [1, 2] || return Error(7, "Unknown major version $version")
   version[2] == 0 || return Error(8, "Unknown minor version $version")
-  if version[0] == 1
+  if version[1] == 1
     headersize = Int16(s[9]) + Int16(s[10] << 8)
     offset = 11
-  elseif version[0] == 2
+  elseif version[1] == 2
     headersize = Int32(s[9]) + Int32(s[10] << 8) + Int32(s[11] << 16) + Int32(s[12] << 24)
     offset = 13
   end
-  if (offset + headersize) % 16 != 0
-    return (0, Error(0, "Header size is not a multiple of 16 bytes"))
+  (offset - 1 + headersize) % 16 == 0 || return (0, Error(0, "Header size is not a multiple of 16 bytes"))
+  dict = parsedict(view(s, offset:offset-1+headersize))
+  typeof(dict) != Error || return dict
+  for k in ["descr", "fortran_order", "shape"]
+    haskey(dict, Array{UInt8,1}(k)) || return Error(offset, "Header dict is missing key $k.")
   end
-  (off, dict) = parsedict(view(s, offset, headersize), 1)
-  typeof(dict) != Error || return (off, dict)
-  for i in off:offset+headersize # We don't care about a trailing '\n'.
-    if !isspace(Char(s[i]))
-      return Error(i, "Junk character '$(Char(s[i]))' after dtype")
-    end
-  end
-  # TODO: check dict!
-  #return (offset + headersize + 1, Header(...))
+  return Header(offset+headersize, dict[b"shape"], prod(dict[b"shape"]), dict[b"descr"][2], dict[b"descr"][1], dict[b"fortran_order"])
 end
 
 
-function parsedict(s, offset)
-  (off, _) = parsewhitespace(s, offset)
+function parsedict(s)
+  (off, _) = parsewhitespace(s, 1)
   (off, x) = expect(s, off, '{')
-  typeof(x) != Error || return (offset, x)
+  typeof(x) != Error || return x
   (off, _) = parsewhitespace(s, off)
   dict = Dict()
   # TODO: parse entries, add to dict
   while off <= length(s) && Char(s[off]) != '}'
     off_ = off
     (off, p) = parsepair(s, off)
-    typeof(p) != Error || return (offset, p)
+    typeof(p) != Error || return p
     if haskey(dict, p[1])
       return Error(off_, "Duplicate key \"$(String(p[1]))\"")
     end
-    push!(dict, p) # XXX: We might check if the key exists already
+    push!(dict, p)
     (off, _) = parsewhitespace(s, off)
     if off < length(s) && Char(s[off]) == ','
       (off, _) = parsewhitespace(s, off+1)
@@ -87,8 +82,10 @@ function parsedict(s, offset)
     end
   end
   (off, x) = expect(s, off, '}')
-  typeof(x) != Error || return (offset, x);
-  return (off, dict)
+  typeof(x) != Error || return x;
+  (off, _) = parsewhitespace(s, off) # We don't care about a trailing '\n'.
+  off == length(s)+1 || return Error(1, "Junk character '$(Char(s[off]))' after end of header dictionary")
+  return dict
 end
 
 
@@ -197,18 +194,18 @@ function parsepair(s, offset)
   (off, x) = parsestring(s, offset)
   typeof(x) != Error || return (offset, x)
   key = x
-  if !(key in [b"dtype", b"fortran_order", b"shape"])
+  if !(key in [b"descr", b"fortran_order", b"shape"])
     return (offset, Error(offset, "Invalid key \"$(String(key))\"")) # Should be offset, not off.
   end
   (off, _) = parsewhitespace(s, off)
   (off, c) = expect(s, off, ':')
   typeof(c) != Error || return (offset, c)
   (off, _) = parsewhitespace(s, off)
-  if key == b"dtype"
+  if key == b"descr"
     off_ = off
     (off, val) = parsestring(s, off)
     typeof(val) != Error || return (offset, val)
-    val = parsedtype(val, off_)
+    val = parsedescr(val, off_)
   elseif key == b"fortran_order"
     (off, val) = parsebool(s, off)
   elseif key == b"shape"
@@ -221,13 +218,13 @@ function parsepair(s, offset)
 end
 
 
-"""`parsedtype(s, off)`
+"""`parsedescr(s, off)`
 
-Parse a dtype string.
+Parse a descr string.
 Returns a tuple (e :: Endianness, type :: DataType) on success, or an Error on failure.
-off should be the offset of the dtype string (for debugging purposes).
+off should be the offset of the descr string (for debugging purposes).
 """
-function parsedtype(s, off)
+function parsedescr(s, off)
   endiannesses = Dict(
     '>' => BigEndian,
     '<' => LittleEndian,
@@ -250,15 +247,16 @@ function parsedtype(s, off)
     b"c8" => Complex{Float32},
     b"c16" => Complex{Float64},
     # These four cannot be read without parsing (and thus reading) the whole file (as far as the author knows).
-    b"U3" => Error(off, "UTF-8 dtype is unsupported"),
-    b"S3" => Error(off, "String dtype is unsupported"),
-    b"O" => Error(off, "Object dtype is unsupported"),
+    b"U3" => Error(off, "UTF-8 descr is unsupported"),
+    b"S3" => Error(off, "String descr is unsupported"),
+    b"O" => Error(off, "Object descr is unsupported"),
   )
-  length(s) >= 2 || return Error(off, "Invalid dtype '$s' (too short)")
+  length(s) >= 2 || return Error(off, "Invalid descr '$s' (too short)")
   datatype = get(datatypes, s[2:end], Error(off, "Unknown or invalid dtype '$(String(s[2:end]))'"))
   typeof(datatype) != Error || return datatype
   endianness = get(endiannesses, Char(s[1]), Error(off, "npy.jl BUG: unknown endianness '$(Char(s[1]))'"))
   typeof(endianness) != Error || return endianness
+  endianness != NoEndian || datatype in [Bool, UInt8, Int8] || return Error(off, "dtype is $(String(s[2:end])), but no endianness is given")
   return (endianness, datatype)
 end
 

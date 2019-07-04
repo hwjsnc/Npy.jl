@@ -284,6 +284,9 @@ function writeheader(endianness :: Endianness, datatype :: DataType, shape, fort
   )
   tuplestring = string("(", join(shape, ", "), ")")
   fortran_order_string = if fortran_order; "True"; else "False"; end
+  if sizeof(datatype) == 1
+    endianness = NoEndian
+  end
   dictstring = Array{UInt8,1}("{'descr': '$(endiannesses[endianness])$(datatypes[datatype])', 'fortran_order': $(fortran_order_string), 'shape': $(tuplestring)}")
   length(dictstring) < 2^16 - 16 || error("For some unfathomable reason, the size of the header string exceeds 4 KiB.")
   if (length(dictstring) + 11) % 16 != 0 # Note: 11 = length(preheaderstring) + length(b"\n")

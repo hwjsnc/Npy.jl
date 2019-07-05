@@ -92,10 +92,10 @@ Opens or creates an `NpyArray` (depending on further arguments) and calls f with
 Examples
 --------
 
-```doctest
+```jldoctest
 julia> tmpdir = mktempdir(); # create a temporary directory to create files in
 
-julia> npy_arr = NpyArray(tmpdir * "/abc.npy", Float64[23.0 π; NaN exp(-42)]); # Create a new npy file; this may take a while to compile the first time.
+julia> npy_arr = NpyArray(tmpdir * "/abc.npy", Float64[23.0 π; NaN exp(-42)]) # Create a new npy file; this may take a while to compile the first time.
 2×2 NpyArray{Float64,2}:
  23.0      NaN
   3.14159    5.74952e-19

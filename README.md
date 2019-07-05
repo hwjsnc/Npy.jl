@@ -12,15 +12,40 @@ TODO: add sr.ht build badge.
 Examples
 --------
 
-TODO
+- Create (or overwrite) a .npy file with data from a regular `Array`, then force the changes to disk.
+
+```jldoctest
+julia> using Npy: NpyArray, sync!
+
+julia> npy_arr = NpyArray("abc.npy", Float64[23.0 π; NaN exp(-42)])
+2×2 NpyArray{Float64,2}:
+ 23.0      NaN
+  3.14159    5.74952e-19
+
+julia> sync!(npy_arr)
+```
+
+- First create a file, fill it with ascending integers and alternating imaginary part, then close it.
+  Afterwards, open it again, and compute the sum of the entries
+
+```jldoctest
+julia> using Npy: NpyArray
+
+julia> NpyArray("def.npy", Complex{Float32}, (4, 5, 7)) do arr
+         arr .= reshape(map(i -> ComplexF64(i)+(-im)^i, eachindex(arr)), size(arr))
+       end;
+
+julia> sum(NpyArray("def.npy")) == (4*5*7) * (4*5*7+1) / 2
+true
+```
 
 
 Non-Features
 ------------
 
-- Will not support compressed archives (.npz).
-- Will not support bytestrings, unicode strings, objects.
-- Will not support 'host endianness' ("=" in descr).
+- Does not and will not support compressed archives (.npz).
+- Does not and will not support bytestrings, unicode strings, objects.
+- Does not and will not support 'host endianness' ("=" in descr).
 
 
 Compatibility
@@ -40,9 +65,13 @@ There have been no changes since version 1.0.0.
 Bugs
 ----
 
-- There are no performance measurements or benchmarks available.
+- There are no performance benchmarks available.
+  To give a rough impression:
+  On the author's laptop, reading a 10 GB file (with Float64 entries and shape (50, 125, 200, 1000)) and summing its entries takes around 25 s when julia was just started and the file is not cached; and 9.8 s when all relevant functions are precompiled and the file is cached.
+  For comparison, summing an equivalent Array (completely in main memory) takes 0.7 s.
 - Does not support writing .npy version 2.0.
   This is not expected to be a problem as long as the data size does not reach approximately 10^6500 bytes (or the data files have more than approximately 2900 columns).
+- Creating .npy files from `AbstractArrays` with non-standard axes is not supported.
 
 
 Author and Copying
@@ -71,8 +100,7 @@ Similar work
 TODO
 ----
 
-- Add CI
+- Add CI for tests & doctests
 - Add tests for NpyArray
-- Add docs, doctests
 - Add numpy compatibility tests
 - fuzz?

@@ -9,7 +9,7 @@ include("Header.jl")
 
 using .Header: Endianness, LittleEndian, BigEndian, NoEndian
 
-export NpyArray
+export NpyArray, isreadable, iswritable, getindex, setindex!, sync!
 
 
 SupportedTypesType = let
@@ -42,25 +42,26 @@ struct NpyArray{T, DIM} <: AbstractArray{T,DIM}
 end
 
 
-function NpyArray(f :: IOStream, writable = false :: Bool)
-  # TODO
-# TODO: error message: "Error while parsing file header: $err.val at offset $err.offset"
+function NpyArray(f :: IOStream)
+  # TODO: open existing file for reading/writing
+
+  # TODO: error message: "Error while parsing file header: $err.val at offset $err.offset"
 end
 
 
-function NpyArray(f :: IOStream, type :: SupportedTypesType, shape :: Tuple; fortran_order = false :: Bool, endianness = BigEndian :: Endianness) # TODO: maybe don't allow changing fortran_order and endianness?
-  # TODO
+function NpyArray(f :: IOStream, type :: SupportedTypesType, shape :: Tuple)
+  # TODO: write array; data filled with zeros (unless file exists)
 end
 
 
 function NpyArray(f :: IOStream, arr :: Array{T,DIM}) where {T <: SupportedTypesType, DIM}
-  # TODO
+  # TODO: write array; data filled with zeros (unless file exists)
 end
 
 
 # convenient context manager wrapper (for do-notation)
-function NpyArray(f :: Function, args...)
-  arr = NpyArray(args...)
+function NpyArray(f :: Function, args...; kwargs...)
+  arr = NpyArray(args...; kwargs...)
   try
     f(arr)
   finally

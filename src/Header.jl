@@ -21,11 +21,10 @@ end
 
 
 struct NpyHeader
-  data_offset :: Int64
-  shape :: Array{Int64,1}
-  size :: Int64
+  data_offset :: BigInt
+  shape :: Array{BigInt,1}
   datatype :: DataType
-  endianness :: Endianness # TODO: replace?
+  endianness :: Endianness
   fortran_order :: Bool
 end
 
@@ -55,7 +54,7 @@ function parseheader(s)
   for k in ["descr", "fortran_order", "shape"]
     haskey(dict, Array{UInt8,1}(k)) || return Error(offset, "Header dict is missing key $k.")
   end
-  return NpyHeader(offset+headersize, dict[b"shape"], prod(dict[b"shape"]), dict[b"descr"][2], dict[b"descr"][1], dict[b"fortran_order"])
+  return NpyHeader(offset+headersize, dict[b"shape"], dict[b"descr"][2], dict[b"descr"][1], dict[b"fortran_order"])
 end
 
 

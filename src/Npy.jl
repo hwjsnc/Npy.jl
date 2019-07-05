@@ -1,4 +1,7 @@
-"""TODO: document this
+"""module Npy
+
+Read and Write .npy files, using mmap().
+See `NpyArray`.
 """
 module Npy
 
@@ -61,13 +64,6 @@ struct NpyArray{T, N, ARR <: AbstractArray} <: AbstractArray{T,N}
     header = Header.parseheader(data)
     typeof(header) != Header.Error || error("Error at offset $(header.offset) while parsing file header: $(header.msg).")
     length(data) == BigInt(header.data_offset) - 1 + prod(header.shape) * sizeof(header.datatype) || error("File size does not match header size + data size.")
-    #arr_ = reinterpret(header.datatype, view(data, header.data_offset:length(data)))
-    #shape = Array{Int,1}(header.shape)
-    #if header.fortran_order
-    #  arr = reshape(arr_, shape...)
-    #else
-    #  arr = permutedims(reshape(arr_, reverse(shape)...), length(shape):-1:1)
-    #end
     arr = reinterpret(header.datatype, view(data, header.data_offset:length(data)))
     return new{header.datatype, length(header.shape), typeof(arr)}(header.endianness, header.fortran_order, tuple(Int64.(header.shape)...), data, arr, iswritable(f))
   end
@@ -76,13 +72,13 @@ end
 
 function NpyArray(f :: IOStream, type :: T, shape) where {T <: SupportedTypesTypes}
   # Write array, elements initialized to zero (unless the file already contains data)
-  @assert eltype(shape) isa Integer && all(x -> x > 0, shape)
+  eltype(shape) <: Integer && all(x -> x > 0, shape) || error("Invalid dimensions")
   header = Header.writeheader(BigEndian, type, shape, false)
-  filesize = prod(BigInt.(shape)) * sizeof(T) + length(header)
+  filesize = prod(BigInt.(shape)) * sizeof(type) + length(header)
   truncate(f, filesize)
   seek(f, 0)
   write(f, header) == length(header) || error("Short write")
-  return NpyArray(f, writable=true) # parse the header again; this is inefficient, but who cares?
+  return NpyArray(f) # parse the header again; this is inefficient, but who cares?
 end
 
 

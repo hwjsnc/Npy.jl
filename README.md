@@ -40,7 +40,7 @@ There have been no changes since version 1.0.0.
 Bugs
 ----
 
-- There are no performance tests.
+- There are no performance measurements or benchmarks available.
 - Does not support writing .npy version 2.0.
   This is not expected to be a problem as long as the data size does not reach approximately 10^6500 bytes (or the data files have more than approximately 2900 columns).
 
@@ -63,7 +63,7 @@ Similar work
   It does not use mmap and is unsuitable for files larger than your main memory.
 - [cnpy.h](https://git.sr.ht/~quf/cnpy/)
   The same thing as a C library (by the same author as this project).
-- [cnpy.hpp](https://git.sr.ht/~quf/npy.hpp)
+- [npy.hpp](https://git.sr.ht/~quf/npy.hpp)
   A similar library as a C++ library (by the same author as this project).
   Uses `pread(3)` and `pwrite(3)` instead of mmap.
 
@@ -73,6 +73,6 @@ TODO
 
 - Add CI
 - Add tests for NpyArray
-- Add docs
+- Add docs, doctests
 - Add numpy compatibility tests
 - fuzz?

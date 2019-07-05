@@ -83,7 +83,7 @@ function NpyArray(f :: IOStream, type :: T, shape) where {T <: SupportedTypesTyp
 end
 
 
-function NpyArray(f :: IOStream, arr :: Array{T,N}) where {T <: SupportedTypeUnion, N}
+function NpyArray(f :: IOStream, arr :: AbstractArray{T,N}) where {T <: SupportedTypeUnion, N}
   # Save arr to a newly created file f
   iswritable(f) || error("File is not writable")
   header = Header.writeheader(BigEndian, T, size(arr), false)

@@ -281,7 +281,7 @@ function writeheader(endianness :: Endianness, datatype :: DataType, shape, fort
     Complex{Float32} => "c8",
     Complex{Float64} => "c16",
   )
-  tuplestring = string("(", join(shape, ", "), ")")
+  tuplestring = if length(shape) == 1; "($(shape[1]),)"; else string("(", join(shape, ", ", ","), ")"); end
   fortran_order_string = if fortran_order; "True"; else "False"; end
   if sizeof(datatype) == 1
     endianness = NoEndian

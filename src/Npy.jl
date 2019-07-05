@@ -3,6 +3,7 @@
 module Npy
 
 import LinearAlgebra # Transpose
+import Mmap
 
 include("Header.jl")
 
@@ -79,6 +80,7 @@ end
 # Useful file functions
 isreadable(arr :: NpyArray) = true
 iswritable(arr :: NpyArray) = false
+sync!(arr :: NpyArray) = Mmap.sync!(arr.data)
 
 
 # Delegating array functions

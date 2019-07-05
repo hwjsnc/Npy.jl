@@ -51,21 +51,21 @@ end
 automatically unmapped when there is no more reference
 to sync changes to the file, use sync!
 """
-struct NpyArray{T, N, ARR <: AbstractArray} <: AbstractArray{T,N}
+struct NpyArray{T, N} <: AbstractArray{T,N}
   endianness :: Header.Endianness
   fortran_order :: Bool
-  shape
+  shape :: NTuple{N, UInt64}
   data :: Array{UInt8,1} # Mmapped file
-  arr :: ARR # Note: This array is a view of data, excluding the header; it should _not_ be used directly by users of the library, as no endianness conversion is performed!
+  data_offset :: UInt64
   writable :: Bool
 
   function NpyArray(f :: IOStream)
     data = Mmap.mmap(f, Array{UInt8,1}, fsize(f), 0; grow=false, shared=true)
     header = Header.parseheader(data)
     typeof(header) != Header.Error || error("Error at offset $(header.offset) while parsing file header: $(header.msg).")
-    length(data) == BigInt(header.data_offset) - 1 + prod(header.shape) * sizeof(header.datatype) || error("File size does not match header size + data size.")
-    arr = reinterpret(header.datatype, view(data, header.data_offset:length(data)))
-    return new{header.datatype, length(header.shape), typeof(arr)}(header.endianness, header.fortran_order, tuple(Int64.(header.shape)...), data, arr, iswritable(f))
+    length(data) == BigInt(header.data_offset) - 1 + prod(BigInt.(header.shape)) * BigInt(sizeof(header.datatype)) || error("File size does not match header size + data size.")
+    length(data) == UInt64(header.data_offset) - 1 + prod(UInt64.(header.shape)) * UInt64(sizeof(header.datatype)) || throw(OverflowError("Somehow, the array size is too large for UInt64."))
+    return new{header.datatype, length(header.shape)}(header.endianness, header.fortran_order, tuple(UInt64.(header.shape)...), data, header.data_offset, iswritable(f))
   end
 end
 
@@ -73,6 +73,7 @@ end
 function NpyArray(f :: IOStream, type :: T, shape) where {T <: SupportedTypesTypes}
   # Write array, elements initialized to zero (unless the file already contains data)
   eltype(shape) <: Integer && all(x -> x > 0, shape) || error("Invalid dimensions")
+  iswritable(f) || error("File is not writable")
   header = Header.writeheader(BigEndian, type, shape, false)
   filesize = prod(BigInt.(shape)) * sizeof(type) + length(header)
   truncate(f, filesize)
@@ -84,6 +85,7 @@ end
 
 function NpyArray(f :: IOStream, arr :: Array{T,N}) where {T <: SupportedTypeUnion, N}
   # Save arr to a newly created file f
+  iswritable(f) || error("File is not writable")
   header = Header.writeheader(BigEndian, T, size(arr), false)
   filesize = prod(BigInt.(size(arr))) * sizeof(T) + length(header)
   truncate(f, filesize)
@@ -129,31 +131,42 @@ sync!(arr :: NpyArray) = Mmap.sync!(arr.data)
 IndexStyle(arr :: NpyArray) = IndexLinear()
 size(arr :: NpyArray, args...) = arr.shape
 
-function getindex(arr :: NpyArray{T,N,ARR}, i :: Integer) :: T where {T<:SupportedTypeUnion,N,ARR}
-  i <= i && i <= length(arr) || throw(BoundsError(arr, i))
+function getindex(arr :: NpyArray{T,N}, i :: Integer) :: T where {T<:SupportedTypeUnion,N}
+  x = unsafe_load(getptr(arr, i))
   return if arr.endianness == LittleEndian
-    ltoh(getindex(arr.arr, i))
+    x_ = ltoh(x)
   else
-    ntoh(getindex(arr.arr, i))
+    x_ = ntoh(x)
   end
+  return x_
 end
 
-function getindex(arr :: NpyArray{T,N,ARR}, inds...) :: T where {T<:SupportedTypeUnion,N,ARR}
-  return getindex(arr, flatten(arr, inds...))
+function getindex(arr :: NpyArray{T,N}, i1 :: Integer, inds...) :: T where {T<:SupportedTypeUnion,N}
+  return getindex(arr, flatten(arr, i1, inds...))
 end
 
-function setindex!(arr :: NpyArray{T,N,ARR}, x, i :: Integer) :: T where {T<:SupportedTypeUnion,N,ARR}
-  i <= i && i <= length(arr) || throw(BoundsError(arr, i))
+function setindex!(arr :: NpyArray{T,N}, x, i :: Integer) :: T where {T<:SupportedTypeUnion,N}
+  iswritable(arr) || ReadOnlyMemoryError()
+  x_ = convert(T, x)
   if arr.endianness == LittleEndian
-    setindex!(arr.arr, htol(convert(eltype(arr), x)), i)
+    x__ = htol(x_)
   else
-    setindex!(arr.arr, hton(convert(eltype(arr), x)), i)
+    x__ = hton(x_)
   end
-  return x
+  unsafe_store!(getptr(arr, i), x__)
+  return x_
 end
 
-function setindex!(arr :: NpyArray{T,N,ARR}, x, inds...) :: T where {T<:SupportedTypeUnion,N,ARR}
-  return setindex!(arr, flatten(arr, inds...))
+function setindex!(arr :: NpyArray{T,N}, x, i1 :: Integer, inds...) :: T where {T<:SupportedTypeUnion,N}
+  return setindex!(arr, flatten(arr, i1, inds...))
+end
+
+
+function getptr(arr :: NpyArray{T,N}, i :: Integer) :: Ptr{T} where {T<:SupportedTypeUnion,N}
+  @boundscheck 1 <= i && i <= length(arr) || throw(BoundsError(arr, i))
+  @boundscheck @assert checkbounds(Bool, arr.data, arr.data_offset + (i - 1) * sizeof(T))
+  @boundscheck @assert checkbounds(Bool, arr.data, arr.data_offset + i * sizeof(T) - 1)
+  return convert(Ptr{T}, pointer(arr.data) + arr.data_offset - 1 + (i - 1) * sizeof(T))
 end
 
 
@@ -172,12 +185,12 @@ end
 
 
 function flatten(arr :: NpyArray, inds...)
-  length(inds) == length(arr.shape) || throw(BoundsError(arr, inds))
+  @boundscheck length(inds) == length(arr.shape) || throw(BoundsError(arr, inds))
   if arr.fortran_order
     ind = 0
     stride = 1
     for (i, x) in enumerate(inds)
-      1 <= x && x <= size(arr)[i] || throw(BoundsError(arr, inds))
+      @boundscheck 1 <= x && x <= size(arr)[i] || throw(BoundsError(arr, inds))
       ind += (x - 1) * stride
       stride *= arr.shape[i]
     end
@@ -185,7 +198,7 @@ function flatten(arr :: NpyArray, inds...)
     ind = 0
     stride = 1
     for (i, x) in reverse(collect(enumerate(inds)))
-      1 <= x && x <= size(arr)[i] || throw(BoundsError(arr, inds))
+      @boundscheck 1 <= x && x <= size(arr)[i] || throw(BoundsError(arr, inds))
       ind += (x - 1) * stride
       stride *= arr.shape[i]
     end

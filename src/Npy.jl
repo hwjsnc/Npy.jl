@@ -84,7 +84,13 @@ iswritable(arr :: NpyArray) = false
 # Delegating array functions
 axes(arr :: NpyArray) = axes(arr.arr)
 getindex(arr :: NpyArray, inds...) = if arr.endianness == Header.BigEndian; ntoh.(getindex(arr.arr, inds)); else ltoh.(getindex(arr.arr, inds)); end
-setindex!(arr :: NpyArray, x, inds...) = setindex!(arr, if arr.endianness == Header.BigEndian; hton.(x); else ntoh.(x); end, inds...);
+function setindex!(arr :: NpyArray, x, inds...)
+  # Note: The mmapped() data is writable, but the writes do not propagate to the file.
+  # Since memory pages are copy-on-write, this could lead to sudden memory exhaustion on writes.
+  # Anyway, there is not much point in changing the array entries if the changes are ephemeral; for cross-process communication, it is better to use SharedArrays (no endianness conversion, no header, etc).
+  iswritable(arr) || error("Tried to setindex! a non-writable NpyArray")
+  setindex!(arr, if arr.endianness == Header.BigEndian; hton.(x); else ntoh.(x); end, inds...);
+end
 
 
 end

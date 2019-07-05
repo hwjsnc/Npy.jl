@@ -4,7 +4,6 @@ authors = ["Lukas Himbert <lukas@2.71828.eu>"]
 version = "0.0.1"
 
 [deps]
-LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 Mmap = "a63ad114-7e13-5084-954f-fe012c677804"
 
 [compat]

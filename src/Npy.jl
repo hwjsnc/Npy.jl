@@ -209,7 +209,16 @@ sync!(arr :: NpyArray) = Mmap.sync!(arr.data)
 =#
 
 
-IndexStyle(arr :: NpyArray) = IndexLinear()
+# Note:
+# NpyArray does allow fast linear indexing, so it is tempting to set this to IndexLinear().
+# Indeed, the getindex(::NpyArray, ::Integer) and setindex!(::NpyArray, ::Any, Integer) functions perform linear indexing into the mmapped memory.
+# Moreover, the variadic getindex() and setindex!() functions rely on the linear indexing as well.
+# However, setting IndexLinear() here would break broadcasting for C-contiguous NpyArrays.
+# An example:
+# If a = NpyArray(_, [1 2 3; 4 5 6]), then a[1] == a[1,1] == 1, a[2] == a[1,2] == 2, a[3] == a[1,3] == 3, etc.
+# Whereas if b =     [1 2 3; 4 5 6], then  b[1] == b[1,1] == 1, b[2] == b[2,1] == 4, b[3] == b[1,2] == 2, etc.
+# Similarly, broadcasting a .= b would set a[1,1] = 1, a[1,2] = 4, etc.
+IndexStyle(arr :: NpyArray) = IndexCartesian()
 
 
 size(arr :: NpyArray, args...) = arr.shape
@@ -230,7 +239,7 @@ end
 
 
 function setindex!(arr :: NpyArray{T,N}, x, i :: Integer) :: T where {T<:SupportedTypeUnion,N}
-  iswritable(arr) || ReadOnlyMemoryError()
+  iswritable(arr) || throw(ReadOnlyMemoryError())
   x_ = convert(T, x)
   if arr.endianness == LittleEndian
     x__ = htol(x_)
@@ -251,7 +260,7 @@ end
 
 
 function setindex!(arr :: NpyArray{T,N}, x, i1 :: Integer, inds...) :: T where {T<:SupportedTypeUnion,N}
-  return setindex!(arr, flatten(arr, i1, inds...))
+  return setindex!(arr, x, flatten(arr, i1, inds...))
 end
 
 

@@ -4,6 +4,9 @@ using Npy
 import Random
 
 using Test
+import PyCall
+using PyCall: @py_str
+numpy = PyCall.pyimport("numpy")
 
 @testset "Test header parser" begin
   function iserror(tup, off)
@@ -84,33 +87,64 @@ using Test
 end
 
 
+dtypes = [Bool, Int8, Int16, Int32, Int64, UInt8, UInt16, UInt32, UInt64, Float32, Float64, ComplexF32, ComplexF64]
+shapes = [(1,), (5,), (1, 1), (2, 3), (2, 3, 5), (1, 3, 5, 7), (2, 3, 5, 7)]
+
+function genarr(T, shape)
+  if T <: Integer && prod(shape) > typemax(T)
+    values = reshape((1:prod(shape)) .% (BigInt(typemax(T))+1), shape)
+  else
+    values = reshape(1:prod(shape), shape)
+  end
+  return collect(T, values)
+end
+
 @testset "Complete tests" begin
   @testset "Reading & writing for all data types (Npy.jl only)" begin
-    for T in [Bool, Int8, Int16, Int32, Int64, UInt8, UInt16, UInt32, UInt64, Float32, Float64, ComplexF32, ComplexF64]
-      for shape in [(1,), (5,), (1, 1), (2, 3), (2, 3, 5), (1, 2, 3, 5), (2, 3, 5, 7)]
+    for T in dtypes
+      for shape in shapes
+        arr = genarr(T, shape)
         mktempdir() do dir
-          if T <: Integer && prod(shape) > typemax(T)
-            values = reshape((1:prod(shape)) .% (BigInt(typemax(T))+1), shape)
-          else
-            values = reshape(1:prod(shape), shape)
-          end
-          begin
-            # write arrays
-            arr1 = NpyArray("$dir/test1.npy", collect(T, values))
-            arr2 = NpyArray("$dir/test2.npy", T, shape)
-            arr2 .= values
-          end
-          @test NpyArray("$dir/test1.npy") == values
-          @test NpyArray("$dir/test2.npy") == values
+          NpyArray("$dir/test1.npy", arr) do _; end
+          NpyArray("$dir/test2.npy", T, shape) do npy_arr; npy_arr .= arr; end
+          @test NpyArray("$dir/test1.npy") == arr
+          @test NpyArray("$dir/test2.npy") == arr
         end
       end
     end
   end
   @testset "Round trip Npy.jl -> numpy -> Npy.jl" begin
-    @test error("TODO")
+    for T in dtypes
+      for shape in shapes
+        arr = genarr(T, shape)
+        mktempdir() do dir
+          fn1 = "$dir/test1.npy"
+          fn2 = "$dir/test2.npy"
+          NpyArray(fn1, arr) do npy_arr; end
+          @test py"$numpy.all($numpy.load($fn1) == $arr)"
+          numpy.save(fn2, numpy.load(fn1))
+          @test NpyArray(fn2) == arr
+        end
+      end
+    end
   end
   @testset "Round trip numpy -> Npy.jl -> numpy" begin
-    @test error("TODO")
+    for T in dtypes
+      for shape in shapes
+        arr = genarr(T, shape)
+        mktempdir() do dir
+          fn1 = "$dir/test1.npy"
+          fn2 = "$dir/test2.npy"
+          numpy.save(fn1, arr)
+          @test NpyArray(fn1) == arr
+          NpyArray(fn1) do npy_arr
+            @test npy_arr == arr
+            NpyArray(fn2, npy_arr)
+          end
+          @test py"$numpy.all($numpy.load($fn1) == $arr)"
+        end
+      end
+    end
   end
   @testset "Randomized r/w tests" begin
     @test error("TODO")

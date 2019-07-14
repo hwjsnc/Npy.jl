@@ -237,7 +237,7 @@ function setindex!(arr :: NpyArray{T,N}, x, i :: Integer) :: T where {T<:Support
   elseif arr.endianness == BigEndian
     x__ = hton(x_)
   else
-    @assert sizeof(x) == 1
+    @assert sizeof(x_) == 1
     x__ = x_
   end
   unsafe_store!(getptr(arr, i), x__)

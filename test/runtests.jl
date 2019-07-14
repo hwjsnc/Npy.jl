@@ -1,6 +1,6 @@
 #!/usr/bin/env julia
 
-import Npy
+using Npy
 import Random
 
 using Test
@@ -81,4 +81,38 @@ using Test
   end
   @test Npy.Header.parsedict(b"{'descr': '>f8', 'fortran_order': False, 'shape': (1,2,6,24,120,720,5040)}") == Dict(b"descr" => (Npy.Header.BigEndian, Float64), b"fortran_order" => false, b"shape" => collect(factorial(i) for i in 1:7))
   @test Npy.Header.parsedict(b"{ 'shape': (2,3,),    'descr':'|b1', \t'fortran_order': \nTrue,}") == Dict(b"descr" => (Npy.Header.NoEndian, Bool), b"fortran_order" => true, b"shape" => BigInt[2, 3])
+end
+
+
+@testset "Complete tests" begin
+  @testset "Reading & writing for all data types (Npy.jl only)" begin
+    for T in [Bool, Int8, Int16, Int32, Int64, UInt8, UInt16, UInt32, UInt64, Float32, Float64, ComplexF32, ComplexF64]
+      for shape in [(1,), (5,), (1, 1), (2, 3), (2, 3, 5), (1, 2, 3, 5), (2, 3, 5, 7)]
+        mktempdir() do dir
+          if T <: Integer && prod(shape) > typemax(T)
+            values = reshape((1:prod(shape)) .% (BigInt(typemax(T))+1), shape)
+          else
+            values = reshape(1:prod(shape), shape)
+          end
+          begin
+            # write arrays
+            arr1 = NpyArray("$dir/test1.npy", collect(T, values))
+            arr2 = NpyArray("$dir/test2.npy", T, shape)
+            arr2 .= values
+          end
+          @test NpyArray("$dir/test1.npy") == values
+          @test NpyArray("$dir/test2.npy") == values
+        end
+      end
+    end
+  end
+  @testset "Round trip Npy.jl -> numpy -> Npy.jl" begin
+    @test error("TODO")
+  end
+  @testset "Round trip numpy -> Npy.jl -> numpy" begin
+    @test error("TODO")
+  end
+  @testset "Randomized r/w tests" begin
+    @test error("TODO")
+  end
 end

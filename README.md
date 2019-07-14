@@ -6,7 +6,7 @@ Files are read using mmap(), so that very large files (larger than main memory) 
 
 The following datatypes are supported: `Bool`, `Int8`, `Int16`, `Int32`, `Int64`, `UInt8`, `UInt16`, `UInt32`, `UInt64`, `Float32`, `Float64`, `Complex{Float32}`, `Complex{Float64}`.
 
-TODO: add sr.ht build badge.
+test status: [![builds.sr.ht status](https://builds.sr.ht/~quf/Npy.jl/archlinux.yml.svg)](https://builds.sr.ht/~quf/Npy.jl/archlinux.yml?)
 
 
 Examples
@@ -104,6 +104,5 @@ Related work
 TODO
 ----
 
-- Add CI for tests & doctests
 - Add tests for NpyArray
 - fuzz?

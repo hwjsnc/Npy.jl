@@ -2,7 +2,8 @@ Npy.jl - read and write .npy files in Julia
 ===========================================
 
 Npy.jl is a Julia package which implements reading and writing of a subset of the .npy file format.
-Files are read using mmap(), so that very large files (larger than main memory) are supported.
+Files are read and written using mmap().
+As a result, very large files (larger than main memory) are supported.
 
 The following datatypes are supported: `Bool`, `Int8`, `Int16`, `Int32`, `Int64`, `UInt8`, `UInt16`, `UInt32`, `UInt64`, `Float32`, `Float64`, `Complex{Float32}`, `Complex{Float64}`.
 
@@ -19,14 +20,15 @@ julia> using Npy: NpyArray, sync!
 
 julia> npy_arr = NpyArray("abc.npy", Float64[23.0 π; NaN exp(-42)])
 2×2 NpyArray{Float64,2}:
- 23.0      NaN
-  3.14159    5.74952e-19
+  23.0  3.14159    
+ NaN    5.74952e-19
 
 julia> sync!(npy_arr)
 ```
 
 - First create a file, fill it with ascending integers and alternating imaginary part, then close it.
-  Afterwards, open it again, and compute the sum of the entries
+  Afterwards, open it again, and compute the sum of the entries.
+  Finally, set every entry to zero.
 
 ```jldoctest
 julia> using Npy: NpyArray
@@ -37,6 +39,10 @@ julia> NpyArray("def.npy", Complex{Float32}, (4, 5, 7)) do arr
 
 julia> sum(NpyArray("def.npy")) == (4*5*7) * (4*5*7+1) / 2
 true
+
+julia> NpyArray("def.npy"; write=true) do arr
+         arr .= 0
+       end;
 ```
 
 
@@ -44,6 +50,7 @@ Non-Features
 ------------
 
 `Npy.jl` does not and will not support the following:
+
 - compressed archives (`.npz`)
 - bytestrings, unicode strings, objects
 - 'host endianness' (`=` in `descr`)
@@ -57,17 +64,11 @@ Compatibility
 The current version in 0.0.1.
 
 
-History
--------
-
-There have been no changes since version 1.0.0.
-
-
 Bugs
 ----
 
 - "Cold" performance is very bad:
-  The first `NpyArray("file")` takes several seconds.
+  The first `NpyArray("file")` takes five to ten seconds.
   The cause is not yet clear.
 - There are no performance benchmarks available.
   To give a rough impression:
@@ -82,6 +83,12 @@ Author and Copying
 ------------------
 
 GPLv3?
+
+
+History
+-------
+
+There have been no changes since version 1.0.0.
 
 
 Related work
@@ -104,5 +111,6 @@ Related work
 TODO
 ----
 
-- Add tests for NpyArray
+- Add `@quickcheck` tests
 - fuzz?
+- test on big endian

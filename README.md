@@ -43,16 +43,17 @@ true
 Non-Features
 ------------
 
-- Does not and will not support compressed archives (.npz).
-- Does not and will not support bytestrings, unicode strings, objects.
-- Does not and will not support 'host endianness' ("=" in descr).
+`Npy.jl` does not and will not support the following:
+- compressed archives (`.npz`)
+- bytestrings, unicode strings, objects
+- 'host endianness' (`=` in `descr`)
 
 
 Compatibility
 -------------
 
-Npy.jl is written in Julia 1.0 and has no third-party dependencies.
-Npy.jl follows [semanting versioning v2.0.0](https://semver.org/).
+`Npy.jl` is written in Julia 1.0 and has no third-party dependencies (except for testing).
+`Npy.jl` follows [semanting versioning v2.0.0](https://semver.org/).
 The current version in 0.0.1.
 
 
@@ -65,13 +66,16 @@ There have been no changes since version 1.0.0.
 Bugs
 ----
 
+- "Cold" performance is very bad:
+  The first `NpyArray("file")` takes several seconds.
+  The cause is not yet clear.
 - There are no performance benchmarks available.
   To give a rough impression:
   On the author's laptop, reading a 10 GB file (with Float64 entries and shape (50, 125, 200, 1000)) and summing its entries takes around 25 s when julia was just started and the file is not cached; and 9.8 s when all relevant functions are precompiled and the file is cached.
   For comparison, summing an equivalent Array (completely in main memory) takes 0.7 s.
 - Does not support writing .npy version 2.0.
   This is not expected to be a problem as long as the data size does not reach approximately 10^6500 bytes (or the data files have more than approximately 2900 columns).
-- Creating .npy files from `AbstractArrays` with non-standard axes is not supported.
+- Creating .npy files from an `AbstractArray` with non-standard axes is not supported and may lead to unexpected failures.
 
 
 Author and Copying
@@ -80,7 +84,7 @@ Author and Copying
 GPLv3?
 
 
-Similar work
+Related work
 ------------
 
 - [numpy](https://www.numpy.org/):
@@ -91,9 +95,9 @@ Similar work
   Also supports .npz (compressed .npy files).
   It does not use mmap and is unsuitable for files larger than your main memory.
 - [cnpy.h](https://git.sr.ht/~quf/cnpy/)
-  The same thing as a C library (by the same author as this project).
+  The same thing as this library in form of a C library (by the author as this project).
 - [npy.hpp](https://git.sr.ht/~quf/npy.hpp)
-  A similar library as a C++ library (by the same author as this project).
+  A similar C++ library (by the author as this project).
   Uses `pread(3)` and `pwrite(3)` instead of mmap.
 
 
@@ -102,5 +106,4 @@ TODO
 
 - Add CI for tests & doctests
 - Add tests for NpyArray
-- Add numpy compatibility tests
 - fuzz?

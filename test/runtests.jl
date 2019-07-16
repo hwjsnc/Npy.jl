@@ -1,12 +1,12 @@
 #!/usr/bin/env julia
 
 using Npy
-import Random
-
 using Test
 import PyCall
 using PyCall: @py_str
 numpy = PyCall.pyimport("numpy")
+using Random: AbstractRNG, randexp
+using RandomizedPropertyTest
 
 @testset "Test header parser" begin
   function iserror(tup, off)
@@ -37,11 +37,7 @@ numpy = PyCall.pyimport("numpy")
       @test parseuint(Array{UInt8,1}("junk $i morejunk"), 6) == (length("$i")+6, i)
     end
     @test parseuint(b"+42", 1) == (4, 42)
-    rng = Random.MersenneTwister(0)
-    for _ in 1:100
-      i = Random.rand(rng, UInt64)
-      @test parseuint(Array{UInt8,1}("junk $i morejunk"), 6) == (length("$i")+6, i)
-    end
+    @test @quickcheck n=100 (parseuint(Array{UInt8,1}("junk $i morejunk"), 6) == (length("$i")+6, i)) (i :: UInt64)
     x = BigInt(2)^64 # > max(UInt64)
     @test parseuint(Array{UInt8,1}("$x"), 1) == (length("$x")+1, x)
     x = parse(BigInt, "129845801987043981239840219384")
@@ -146,7 +142,24 @@ end
       end
     end
   end
-  @testset "Randomized r/w tests" begin
-    @test error("TODO")
-  end
+end
+
+
+import RandomizedPropertyTest.specialcases, RandomizedPropertyTest.generate
+
+struct RandArr end
+
+function RandomizedPropertyTest.specialcases(rng :: AbstractRNG, _ :: Type{RandArr})
+  return []
+end
+
+function RandomizedPropertyTest.generate(rng :: AbstractRNG, _ :: Type{RandArr})
+  T = rand(rng, dtypes)
+  shapelen = 1 + Int(round(randexp(rng)))
+  shape = tuple((1+Int(round(randexp(rng))) for _ in 1:shapelen)...)
+  return collect(reshape([RandomizedPropertyTest.generate(rng, T) for _ in 1:prod(shape)], shape))
+end
+
+@testset "Randomized r/w tests" begin
+  @test @quickcheck n=10^3 (mktempdir() do dir; NpyArray("$dir/test.npy", arr) do npy_arr; npy_arr == arr end end) (arr :: RandArr)
 end

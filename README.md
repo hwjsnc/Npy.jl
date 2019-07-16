@@ -111,6 +111,5 @@ Related work
 TODO
 ----
 
-- Add `@quickcheck` tests
 - fuzz?
 - test on big endian

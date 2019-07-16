@@ -84,7 +84,7 @@ end
 
 
 dtypes = [Bool, Int8, Int16, Int32, Int64, UInt8, UInt16, UInt32, UInt64, Float32, Float64, ComplexF32, ComplexF64]
-shapes = [(1,), (5,), (1, 1), (2, 3), (2, 3, 5), (1, 3, 5, 7), (2, 3, 5, 7)]
+shapes = [(1,), (5,), (1, 1), (2, 3), (2, 3, 5), (1, 3, 5, 7), (2, 3, 5, 7), (1, 2, 3, 5, 7, 9, 11)]
 
 function genarr(T, shape)
   if T <: Integer && prod(shape) > typemax(T)
@@ -95,20 +95,21 @@ function genarr(T, shape)
   return collect(T, values)
 end
 
-@testset "Complete tests" begin
-  @testset "Reading & writing for all data types (Npy.jl only)" begin
-    for T in dtypes
-      for shape in shapes
-        arr = genarr(T, shape)
-        mktempdir() do dir
-          NpyArray("$dir/test1.npy", arr) do _; end
-          NpyArray("$dir/test2.npy", T, shape) do npy_arr; npy_arr .= arr; end
-          @test NpyArray("$dir/test1.npy") == arr
-          @test NpyArray("$dir/test2.npy") == arr
-        end
+@testset "Reading & writing for all data types" begin
+  for T in dtypes
+    for shape in shapes
+      arr = genarr(T, shape)
+      mktempdir() do dir
+        NpyArray("$dir/test1.npy", arr) do _; end
+        NpyArray("$dir/test2.npy", T, shape) do npy_arr; npy_arr .= arr; end
+        @test NpyArray("$dir/test1.npy") == arr
+        @test NpyArray("$dir/test2.npy") == arr
       end
     end
   end
+end
+
+@testset "Numpy compatibility" begin
   @testset "Round trip Npy.jl -> numpy -> Npy.jl" begin
     for T in dtypes
       for shape in shapes

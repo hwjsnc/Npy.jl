@@ -34,7 +34,7 @@ julia> sync!(npy_arr)
 julia> using Npy: NpyArray
 
 julia> NpyArray("def.npy", Complex{Float32}, (4, 5, 7)) do arr
-         arr .= reshape(map(i -> ComplexF64(i)+(-im)^i, eachindex(arr)), size(arr))
+         arr .= reshape(map(i -> ComplexF32(i)+(-im)^i, 1:length(arr)), size(arr))
        end;
 
 julia> sum(NpyArray("def.npy")) == (4*5*7) * (4*5*7+1) / 2
@@ -61,7 +61,7 @@ Compatibility
 
 `Npy.jl` is written in Julia 1.0 and has no third-party dependencies (except for testing).
 `Npy.jl` follows [semanting versioning v2.0.0](https://semver.org/).
-The current version in 0.0.1.
+The current version in 0.1.0.
 
 
 Bugs
@@ -76,14 +76,25 @@ Bugs
   For comparison, summing an equivalent Array (completely in main memory) takes 0.7 s.
 - Does not support writing .npy version 2.0.
   This is not expected to be a problem as long as the data size does not reach approximately 10^6500 bytes (or the data files have more than approximately 2900 dimensions).
-- Creating .npy files from an `AbstractArray` with non-standard axes is not supported and may lead to unexpected failures.
+- Creating .npy files from an `AbstractArray` with non-standard axes is neither supported nor tested and may silently eat your data.
+  Here be dragons.
 - `Npy.jl` should work on big-endian architectures, but this has not been tested.
 
 
 Author and Copying
 ------------------
 
-GPLv3?
+Copyright © 2019  Lukas Himbert
+
+`Npy.jl` is free software:
+you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, version 3 of the License.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with this program.
+If not, see https://www.gnu.org/licenses/.
 
 
 History
@@ -96,16 +107,16 @@ Related work
 ------------
 
 - [numpy](https://www.numpy.org/):
-  Python numerical library; originating project for the .npy format.
+  Python numerical library; origin of the .npy format.
 - [NPZ.jl](https://github.com/fhs/NPZ.jl):
   Another Julia library for .npy files.
   Supports the same data types as this library.
   Also supports .npz (compressed .npy files).
   It does not use mmap and is unsuitable for files larger than your main memory.
 - [cnpy.h](https://git.sr.ht/~quf/cnpy/)
-  The same thing as this library in form of a C library (by the author as this project).
+  The same thing as this library in form of a C library (by the author of this package).
 - [npy.hpp](https://git.sr.ht/~quf/npy.hpp)
-  A similar C++ library (by the author as this project).
+  A similar C++ library (by the author of this package).
   Uses `pread(3)` and `pwrite(3)` instead of mmap.
 
 
@@ -114,3 +125,5 @@ TODO
 
 - fuzz?
 - test on big endian
+- re-run manual tests
+- re-check everything

@@ -114,10 +114,10 @@ julia> tmpdir = mktempdir(); # create a temporary directory to create files in
 
 julia> npy_arr = NpyArray(tmpdir * "/abc.npy", Float64[23.0 π; NaN exp(-42)]) # Create a new npy file; this may take a while to compile the first time.
 2×2 NpyArray{Float64,2}:
- 23.0      NaN
-  3.14159    5.74952e-19
+  23.0  3.14159    
+ NaN    5.74952e-19
 
-julia> sync!(npy_arr) # Force the changes to disk
+julia> sync!(npy_arr)
 
 julia> NpyArray(tmpdir * "/abc.npy") do npy_arr2
          # Open the file for reading and print the element type
@@ -133,8 +133,8 @@ julia> NpyArray(tmpdir * "/def.npy", Complex{Float32}, (2, 3)) do npy_arr3
          show(stdout, MIME("text/plain"), npy_arr3)
        end
 2×3 NpyArray{Complex{Float32},2}:
-  0.5-0.5im   0.4-0.2im       0.2-0.4im
- 0.25-0.25im  0.1-0.3im  0.153846-0.230769im
+ 0.5-0.5im   0.2-0.4im        0.1-0.3im     
+ 0.4-0.2im  0.25-0.25im  0.153846-0.230769im
 
 julia> rm(tmpdir; recursive=true) # clean up
 ```

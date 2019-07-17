@@ -27,6 +27,7 @@ import Base.size
 import Base.IndexStyle
 import Base.getindex
 import Base.setindex!
+import Base.LinearIndices
 
 import Mmap
 import Mmap.sync!
@@ -277,6 +278,11 @@ end
 
 function setindex!(arr :: NpyArray{T,N}, x, i1 :: Integer, inds...) :: T where {T<:SupportedTypeUnion,N}
   return setindex!(arr, x, flatten(arr, i1, inds...))
+end
+
+
+function Base.LinearIndices(_ :: NpyArray)
+  throw(ArgumentError("Do not use linear indexing with NpyArray."))
 end
 
 

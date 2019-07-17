@@ -64,8 +64,8 @@ Compatibility
 The current version in 0.1.0.
 
 
-Bugs
-----
+Bugs and caveats
+----------------
 
 - "Cold" performance is very bad:
   The first `NpyArray("file")` takes five to ten seconds.
@@ -79,6 +79,12 @@ Bugs
 - Creating .npy files from an `AbstractArray` with non-standard axes is neither supported nor tested and may silently eat your data.
   Here be dragons.
 - `Npy.jl` should work on big-endian architectures, but this has not been tested.
+- Do not attempt to use linear indices with `NpyArray`s!
+  Especially do not use the same linear indices of a particular `NpyArray` with any other `AbstractArray` (including other `NpyArray`s)!
+  `.npy` files may be saved in either row major ("C contiguous") or column major ("Fortran contiguous", Julia convention) order.
+  Using a linear index corresponding to one serialization order with an array of the other serialization order (and same shape) is incorrect, and impossible to detect.
+  Using `CartesianIndices` is perfectly fine and is automatically used when broadcasting or looping over an `NpyArray`.
+  If you need linear indexing, use `collect` to copy its data to a normal Julia `Array`.
 
 
 Author and Copying

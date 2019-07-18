@@ -71,7 +71,7 @@ Bugs and caveats
 
 - "Cold" performance is very bad:
   The first `NpyArray("file")` takes five to ten seconds.
-  This is mainly due to parsing the parser.
+  This is mainly due to parsing the header.
 - There are no performance benchmarks available.
   To give a rough impression:
   On the author's laptop, reading a 10 GB file (with Float64 entries and shape (50, 125, 200, 1000)) and summing its entries takes around 25 s when Julia was just started and the file is not cached; and 9.8 s when all relevant functions are precompiled and the file is cached.

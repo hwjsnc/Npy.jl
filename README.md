@@ -7,7 +7,7 @@ As a result, very large files (larger than main memory) are supported.
 
 Files with one of the following datatypes are supported: `Bool`, `Int8`, `Int16`, `Int32`, `Int64`, `UInt8`, `UInt16`, `UInt32`, `UInt64`, `Float32`, `Float64`, `Complex{Float32}`, `Complex{Float64}`.
 
-test status: [![builds.sr.ht status](https://builds.sr.ht/~quf/Npy.jl/archlinux.yml.svg)](https://builds.sr.ht/~quf/Npy.jl/archlinux.yml?)
+Test status: [![builds.sr.ht status](https://builds.sr.ht/~quf/Npy.jl/archlinux.yml.svg)](https://builds.sr.ht/~quf/Npy.jl/archlinux.yml?)
 
 
 Examples
@@ -45,6 +45,8 @@ julia> NpyArray("def.npy"; write=true) do arr
        end;
 ```
 
+For more information on the `NpyArray` constructors, see its Julia docstring.
+
 
 Non-Features
 ------------
@@ -69,12 +71,12 @@ Bugs and caveats
 
 - "Cold" performance is very bad:
   The first `NpyArray("file")` takes five to ten seconds.
-  The cause is not yet clear.
+  This is mainly due to parsing the parser.
 - There are no performance benchmarks available.
   To give a rough impression:
-  On the author's laptop, reading a 10 GB file (with Float64 entries and shape (50, 125, 200, 1000)) and summing its entries takes around 25 s when julia was just started and the file is not cached; and 9.8 s when all relevant functions are precompiled and the file is cached.
+  On the author's laptop, reading a 10 GB file (with Float64 entries and shape (50, 125, 200, 1000)) and summing its entries takes around 25 s when Julia was just started and the file is not cached; and 9.8 s when all relevant functions are precompiled and the file is cached.
   For comparison, summing an equivalent Array (completely in main memory) takes 0.7 s.
-- Does not support writing .npy version 2.0.
+- This package does not support writing .npy version 2.0.
   This is not expected to be a problem as long as the data size does not reach approximately 10^6500 bytes (or the data files have more than approximately 2900 dimensions).
 - Creating .npy files from an `AbstractArray` with non-standard axes is neither supported nor tested and may silently eat your data.
   Here be dragons.
@@ -87,19 +89,19 @@ Bugs and caveats
   If you need linear indexing, use `collect` to copy its data to a normal Julia `Array`.
 
 
-Author and Copying
-------------------
+Copying
+-------
 
 Copyright © 2019  Lukas Himbert
 
 `Npy.jl` is free software:
 you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, version 3 of the License.
 
-This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+`Npy.jl` is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
 without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 See the GNU General Public License for more details.
 
-You should have received a copy of the GNU General Public License along with this program.
+You should have received a copy of the GNU General Public License along with `Npy.jl`.
 If not, see https://www.gnu.org/licenses/.
 
 
@@ -131,5 +133,5 @@ TODO
 
 - fuzz?
 - test on big endian
-- re-run manual tests
 - re-check everything
+- Re-write parser for compilation speed?

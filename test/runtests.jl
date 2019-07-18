@@ -1,18 +1,18 @@
 #!/usr/bin/env julia
 
 #=
-This file is part of the `Npy.jl` package.
+This file is part of the Npy.jl package.
 
 Copyright © 2019  Lukas Himbert
 
-`Npy.jl` is free software:
+Npy.jl is free software:
 you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, version 3 of the License.
 
-This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+Npy.jl is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
 without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 See the GNU General Public License for more details.
 
-You should have received a copy of the GNU General Public License along with this program.
+You should have received a copy of the GNU General Public License along with Npy.jl.
 If not, see https://www.gnu.org/licenses/.
 =#
 

@@ -75,6 +75,34 @@ function parseheader(s)
 end
 
 
+descr_regex = r"""
+  ('|")descr\1
+  \s* : \s*
+  ('|")
+    (?<endianness>[><|=])
+    (?<dtype>[[:alnum:]]+)
+  \2
+"""x :: Regex
+fortran_order_regex = r"""
+  ('|")fortran_order\1
+  \s* : \s*
+  (?<val>True|False)
+"""x :: Regex
+shape_regex = r"""
+  ('|")shape\1
+  \s* : \s*
+  (?<shape>
+    \(
+      \s*
+      (\+?\d+)?
+      \s*
+      (, \s* \+?\d+ \s* )
+      *\s*
+      (,\s*)?
+    \)
+  )
+"""x :: Regex
+
 function parsedict(s)
   m = match(r"\s*{\s*", s)
   m != nothing && m.offset == 1 || return Error(1, "Expected '{' at beginning of header dictionary.")
@@ -143,160 +171,6 @@ function parsedict(s)
   off += length(m.match)
   off == length(s)+1 || return Error(1, "Junk character '$(s[off])' after end of header dictionary")
   return dict
-end
-
-
-function parsewhitespace(s, offset)
-  i = offset
-  while i <= length(s) && isspace(s[i])
-    i += 1
-  end
-  return (i, nothing)
-end
-
-
-function parsestring(s, offset) # TODO: remove
-  m = match(r"""('|")(?<key>[^'"]*)\1""", s, offset) # Note: We do not handle escape sequences.
-  m != nothing && m.offset == offset || return (offset, Error(offset, "Expected a String"))
-  return (offset + length(m.match), m[:key])
-end
-
-
-function parsebool(s, offset) # TODO: remove
-  m = match(r"(True|False)", s, offset)
-  m != nothing && m.offset == offset || return (offset, Error(offset, "Got neither True nor False while parsing a bool."))
-  return (offset + length(m.match), m[1] == "True")
-end
-
-
-function parseuint(s, offset) # TODO: remove
-  m = match(r"\+?\d+", s, offset)
-  m != nothing && m.offset == offset || return (offset, Error(offset, "Expected a number"))
-  return (offset+length(m.match), parse(BigInt, m.match))
-end
-
-
-function parseuinttuple(s, offset) # TODO: remove
-  m = match(r"\(\s*(\+?\d+)?\s*(,\s*\+?\d+\s*)*\s*,?\s*\)", s, offset) # match the whole tuple
-  m != nothing && m.offset == offset || return (offset, Error(offset, "Expected a tuple of ints"))
-  tup = collect(parse(BigInt, m2.match) for m2 in eachmatch(r"\+?\d+", m.match)) # Match each entry, convert to BigInt
-  return (offset + length(m.match), tup)
-end
-
-
-descr_regex = r"""
-  ('|")descr\1
-  \s* : \s*
-  ('|")
-    (?<endianness>[><|=])
-    (?<dtype>[[:alnum:]]+)
-  \2
-"""x :: Regex
-fortran_order_regex = r"""
-  ('|")fortran_order\1
-  \s* : \s*
-  (?<val>True|False)
-"""x :: Regex
-shape_regex = r"""
-  ('|")shape\1
-  \s* : \s*
-  (?<shape>
-    \(
-      \s*
-      (\+?\d+)?
-      \s*
-      (, \s* \+?\d+ \s* )
-      *\s*
-      (,\s*)?
-    \)
-  )
-"""x :: Regex
-
-function parsepair(s, offset)
-  endiannesses = Dict(
-    ">" => BigEndian,
-    "<" => LittleEndian,
-    "|" => NoEndian,
-    # Host endianness is a terrible choice for long-term storage of data.
-    "=" => Error(offset, "\"Host\" endianness is intentionally unsupported")
-  )
-  datatypes = Dict(
-    "b1" => Bool,
-    "i1" => Int8,
-    "i2" => Int16,
-    "i4" => Int32,
-    "i8" => Int64,
-    "u1" => UInt8,
-    "u2" => UInt16,
-    "u4" => UInt32,
-    "u8" => UInt64,
-    "f4" => Float32,
-    "f8" => Float64,
-    "c8" => Complex{Float32},
-    "c16" => Complex{Float64},
-    # These four cannot be read without parsing (and thus reading) the whole file (as far as the author knows).
-    "U3" => Error(offset, "UTF-8 descr is unsupported"),
-    "S3" => Error(offset, "String descr is unsupported"),
-    "O" => Error(offset, "Object descr is unsupported"),
-  )
-  if (m = match(descr_regex, s, offset)) != nothing && m.offset == offset
-    datatype = get(datatypes, m[:dtype], Error(offset, "Unknown or invalid dtype '$(m[:dtype])'"))
-    typeof(datatype) != Error || return (offset, datatype)
-    endianness = get(endiannesses, m[:endianness], Error(offset, "npy.jl BUG: unknown endianness '$(m[:endianness])'"))
-    typeof(endianness) != Error || return (offset, endianness)
-    endianness != NoEndian || sizeof(datatype) == 1 || return Error(offset, "dtype is $(String(m[:dtype])), but no endianness is given")
-    return (offset + length(m.match), "descr" => (endianness, datatype))
-  elseif (m = match(fortran_order_regex, s, offset)) != nothing && m.offset == offset
-    return (offset + length(m.match), "fortran_order" => (m[:val] == "True"))
-  elseif (m = match(shape_regex, s, offset)) != nothing && m.offset == offset
-    number_regex = r"\+?\d+"
-    tup = collect(parse(BigInt, m2.match) for m2 in eachmatch(number_regex, m[:shape]))
-    return (offset + length(m.match), "shape" => tup)
-  end
-  return (offset, Error(offset, "Invalid key-value pair"))
-end
-
-
-"""`parsedescr(s, off)`
-
-Parse a descr string.
-Returns a tuple (e :: Endianness, type :: DataType) on success, or an Error on failure.
-off should be the offset of the descr string (for debugging purposes).
-"""
-function parsedescr(s, off) # TODO: remove
-  endiannesses = Dict(
-    '>' => BigEndian,
-    '<' => LittleEndian,
-    '|' => NoEndian,
-    # Host endianness is a terrible choice for long-term storage of data.
-    '=' => Error(off, "\"Host\" endianness is intentionally unsupported")
-  )
-  datatypes = Dict(
-    "b1" => Bool,
-    "i1" => Int8,
-    "i2" => Int16,
-    "i4" => Int32,
-    "i8" => Int64,
-    "u1" => UInt8,
-    "u2" => UInt16,
-    "u4" => UInt32,
-    "u8" => UInt64,
-    "f4" => Float32,
-    "f8" => Float64,
-    "c8" => Complex{Float32},
-    "c16" => Complex{Float64},
-    # These four cannot be read without parsing (and thus reading) the whole file (as far as the author knows).
-    "U3" => Error(off, "UTF-8 descr is unsupported"),
-    "S3" => Error(off, "String descr is unsupported"),
-    "O" => Error(off, "Object descr is unsupported"),
-  )
-  length(s) >= 2 || return Error(off, "Invalid descr '$s' (too short)")
-  datatype = get(datatypes, s[2:end], Error(off, "Unknown or invalid dtype '$(String(s[2:end]))'"))
-  typeof(datatype) != Error || return datatype
-  endianness = get(endiannesses, s[1], Error(off, "npy.jl BUG: unknown endianness '$(s[1])'"))
-  typeof(endianness) != Error || return endianness
-  endianness != NoEndian || sizeof(datatype) == 1 || return Error(off, "dtype is $(String(s[2:end])), but no endianness is given")
-  return (endianness, datatype)
 end
 
 

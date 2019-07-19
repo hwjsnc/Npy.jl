@@ -153,9 +153,9 @@ end
 
 
 function parsebool(s, offset)
-  if s[offset:offset+3] == b"True"
+  if s[offset:min(offset+3, length(s))] == b"True"
     return (offset+4, true)
-  elseif s[offset:offset+4] == b"False"
+  elseif s[offset:min(offset+4, length(s))] == b"False"
     return (offset+5, false)
   end
   return (offset, Error(offset, "Got neither True nor False while parsing a bool."))

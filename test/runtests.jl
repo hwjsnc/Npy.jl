@@ -47,6 +47,7 @@ using RandomizedPropertyTest
     @test parsebool(b"somejunk: False, morejunk", 11) == (16, false)
     @test iserror(parsebool(b"somejunk: true, morejunk", 11), 11)
     @test iserror(parsebool(b"somejunk: false, morejunk", 11), 11)
+    @test iserror(parsebool(b"Tru", 1), 1)
   end
   @testset "Test parseuint" begin
     using Npy.Header: parseuint

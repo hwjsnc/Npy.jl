@@ -96,8 +96,8 @@ using RandomizedPropertyTest
     @test parsepair("'descr': \">c8\"", 1) == (15, "descr" => (BigEndian, Complex{Float32}))
     @test iserror(parsepair("abc 'descr': True,", 5), 5)
   end
-  @test Npy.Header.parsedict("{'descr': '>f8', 'fortran_order': False, 'shape': (1,2,6,24,120,720,5040)}") == Dict("descr" => (Npy.Header.BigEndian, Float64), "fortran_order" => false, "shape" => collect(factorial(i) for i in 1:7))
-  @test Npy.Header.parsedict("{ 'shape': (2,3,),    'descr':'|b1', \t'fortran_order': \nTrue,}") == Dict("descr" => (Npy.Header.NoEndian, Bool), "fortran_order" => true, "shape" => BigInt[2, 3])
+  @test Npy.Header.parsedict("{'descr': '>f8', 'fortran_order': False, \n 'shape': (1,2,6,24,120,720,5040)}  \n") == Dict("descr" => (Npy.Header.BigEndian, Float64), "fortran_order" => false, "shape" => collect(factorial(i) for i in 1:7))
+  @test Npy.Header.parsedict("{ 'shape': (2,3,),    'descr':'|b1', \t'fortran_order': \nTrue,}\t\n\n") == Dict("descr" => (Npy.Header.NoEndian, Bool), "fortran_order" => true, "shape" => BigInt[2, 3])
 end
 
 

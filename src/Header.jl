@@ -76,30 +76,26 @@ end
 
 
 function parsedict(s)
-  (off, _) = parsewhitespace(s, 1)
-  (off, x) = expect(s, off, '{')
-  typeof(x) != Error || return x
-  (off, _) = parsewhitespace(s, off)
+  m = match(r"\s*{\s*", s)
+  m != nothing && m.offset == 1 || return Error("Expected '{' at beginning of header dictionary.")
+  off = length(m.match) + 1
   dict = Dict()
-  # TODO: parse entries, add to dict
   while off <= length(s) && s[off] != '}'
     off_ = off
     (off, p) = parsepair(s, off)
     typeof(p) != Error || return p
-    if haskey(dict, p[1])
-      return Error(off_, "Duplicate key \"$(p[1])\"")
-    end
+    !haskey(dict, p[1]) || return Error(off_, "Duplicate key \"$(p[1])\"")
     push!(dict, p)
-    (off, _) = parsewhitespace(s, off)
-    if off < length(s) && s[off] == ','
-      (off, _) = parsewhitespace(s, off+1)
-    else
+    m = match(r"\s*(,\s*)?", s, off)
+    @assert m != nothing && m.offset == off
+    off += length(m.match)
+    if isempty(m.captures) # no ","
       break
     end
   end
-  (off, x) = expect(s, off, '}')
-  typeof(x) != Error || return x;
-  (off, _) = parsewhitespace(s, off) # We don't care about a trailing '\n'.
+  m = match(r"\s*}\s*\n"s, s, off)
+  m != nothing && m.offset == off || return Error(off, "Header dictionary not closed correctly")
+  off += length(m.match)
   off == length(s)+1 || return Error(1, "Junk character '$(s[off])' after end of header dictionary")
   return dict
 end
@@ -111,16 +107,6 @@ function parsewhitespace(s, offset)
     i += 1
   end
   return (i, nothing)
-end
-
-
-function expect(s, offset, c :: Char)
-  offset <= length(s) || return (s, Error(offset, "Missing '$c'"))
-  chr = s[offset]
-  if chr != c
-    return (offset, Error(offset, "Expected '$c', got '$chr'"))
-  end
-  return (offset+1, chr)
 end
 
 

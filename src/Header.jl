@@ -77,7 +77,7 @@ end
 
 function parsedict(s)
   m = match(r"\s*{\s*", s)
-  m != nothing && m.offset == 1 || return Error("Expected '{' at beginning of header dictionary.")
+  m != nothing && m.offset == 1 || return Error(1, "Expected '{' at beginning of header dictionary.")
   off = length(m.match) + 1
   dict = Dict()
   while off <= length(s) && s[off] != '}'

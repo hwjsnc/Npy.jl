@@ -154,28 +154,45 @@ end
 
 
 function parsepair(s, offset)
-  m = match(r"""('|")(?<key>descr|fortran_order|shape)\1\s*:\s*""", s, offset)
-  m != nothing && m.offset == offset || return (offset, Error(offset, "Invalid pair"))
-  key = m[:key]
-  off = offset + length(m.match)
-  if key == "descr"
-    m = match(r"""('|")(?<endianness>[><|=])(?<dtype>[[:alnum:]]+)\1""", s, off)
-    m != nothing && m.offset == off || return (offset, Error(offset, "Invalid value for key 'descr'"))
-    val = parsedescr(m[:endianness] * m[:dtype], off) # TODO: inline
-    off += length(m.match)
-  elseif key == "fortran_order"
-    m = match(r"(True|False)", s, off)
-    m != nothing && m.offset == off || return (offset, Error(offset, "Invalid value for key 'fortran_order'"))
-    val = (m[1] == "True")
-    off += length(m.match)
-  elseif key == "shape"
-    m = match(r"\(\s*(\+?\d+)?\s*(,\s*\+?\d+\s*)*\s*,?\s*\)", s, off) # match the whole tuple
-    m != nothing && m.offset == off || return (offset, Error(offset, "Invalid value for key 'shape'"))
-    val = collect(parse(BigInt, m2.match) for m2 in eachmatch(r"\+?\d+", m.match)) # Match each entry, convert to BigInt
-    off += length(m.match)
+  descr_regex = r"""
+    ('|")descr\1
+    \s* : \s*
+    ('|")
+      (?<endianness>[><|=])
+      (?<dtype>[[:alnum:]]+)
+    \2
+  """x
+  fortran_order_regex = r"""
+    ('|")fortran_order\1
+    \s* : \s*
+    (?<val>True|False)
+  """x
+  shape_regex = r"""
+    ('|")shape\1
+    \s* : \s*
+    (?<shape>
+      \(
+        \s*
+        (\+?\d+)?
+        \s*
+        (, \s* \+?\d+ \s* )
+        *\s*
+        (,\s*)?
+      \)
+    )
+  """x
+  if (m = match(descr_regex, s, offset)) != nothing && m.offset == offset
+    val = parsedescr(m[:endianness] * m[:dtype], offset) # TODO: inline
+    return (offset + length(m.match), "descr" => val)
+  elseif (m = match(fortran_order_regex, s, offset)) != nothing && m.offset == offset
+    return (offset + length(m.match), "fortran_order" => (m[:val] == "True"))
+  # shape
+  elseif (m = match(shape_regex, s, offset)) != nothing && m.offset == offset
+    number_regex = r"\+?\d+"
+    tup = collect(parse(BigInt, m2.match) for m2 in eachmatch(number_regex, m[:shape]))
+    return (offset + length(m.match), "shape" => tup)
   end
-  typeof(val) != Error || return (offset, val)
-  return (off, key => val)
+  return (offset, Error(offset, "Invalid key-value pair"))
 end
 
 

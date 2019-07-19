@@ -181,12 +181,41 @@ function parsepair(s, offset)
       \)
     )
   """x
+  endiannesses = Dict(
+    ">" => BigEndian,
+    "<" => LittleEndian,
+    "|" => NoEndian,
+    # Host endianness is a terrible choice for long-term storage of data.
+    "=" => Error(offset, "\"Host\" endianness is intentionally unsupported")
+  )
+  datatypes = Dict(
+    "b1" => Bool,
+    "i1" => Int8,
+    "i2" => Int16,
+    "i4" => Int32,
+    "i8" => Int64,
+    "u1" => UInt8,
+    "u2" => UInt16,
+    "u4" => UInt32,
+    "u8" => UInt64,
+    "f4" => Float32,
+    "f8" => Float64,
+    "c8" => Complex{Float32},
+    "c16" => Complex{Float64},
+    # These four cannot be read without parsing (and thus reading) the whole file (as far as the author knows).
+    "U3" => Error(offset, "UTF-8 descr is unsupported"),
+    "S3" => Error(offset, "String descr is unsupported"),
+    "O" => Error(offset, "Object descr is unsupported"),
+  )
   if (m = match(descr_regex, s, offset)) != nothing && m.offset == offset
-    val = parsedescr(m[:endianness] * m[:dtype], offset) # TODO: inline
-    return (offset + length(m.match), "descr" => val)
+    datatype = get(datatypes, m[:dtype], Error(offset, "Unknown or invalid dtype '$(m[:dtype])'"))
+    typeof(datatype) != Error || return (offset, datatype)
+    endianness = get(endiannesses, m[:endianness], Error(offset, "npy.jl BUG: unknown endianness '$(m[:endianness])'"))
+    typeof(endianness) != Error || return (offset, endianness)
+    endianness != NoEndian || sizeof(datatype) == 1 || return Error(offset, "dtype is $(String(m[:dtype])), but no endianness is given")
+    return (offset + length(m.match), "descr" => (endianness, datatype))
   elseif (m = match(fortran_order_regex, s, offset)) != nothing && m.offset == offset
     return (offset + length(m.match), "fortran_order" => (m[:val] == "True"))
-  # shape
   elseif (m = match(shape_regex, s, offset)) != nothing && m.offset == offset
     number_regex = r"\+?\d+"
     tup = collect(parse(BigInt, m2.match) for m2 in eachmatch(number_regex, m[:shape]))
@@ -202,7 +231,7 @@ Parse a descr string.
 Returns a tuple (e :: Endianness, type :: DataType) on success, or an Error on failure.
 off should be the offset of the descr string (for debugging purposes).
 """
-function parsedescr(s, off)
+function parsedescr(s, off) # TODO: remove
   endiannesses = Dict(
     '>' => BigEndian,
     '<' => LittleEndian,

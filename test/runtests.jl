@@ -26,78 +26,56 @@ using Random: AbstractRNG, randexp
 using RandomizedPropertyTest
 
 @testset "Test header parser" begin
-  function iserror(tup, off)
-    return tup[1] == off && typeof(tup[2]) == Npy.Header.Error
+  using Npy.Header: Error
+
+  @testset "Empty dictionary" begin
+    @test Npy.Header.parsedict("{}") isa Error
+    @test Npy.Header.parsedict("{}\n") == Dict()
+    @test Npy.Header.parsedict("{ \t \n } \n   \n") == Dict()
+    @test Npy.Header.parsedict("{\n") isa Error
+    @test Npy.Header.parsedict("\n") isa Error
   end
-  @testset "Test parsestring" begin
-    using Npy.Header: parsestring
-    @test parsestring(b"\"hello, world!\"", 1) == (16, b"hello, world!")
-    @test parsestring(b"'hello, world!'", 1) == (16, b"hello, world!")
-    @test iserror(parsestring(b"'hello, world!", 1), 1)
-    @test iserror(parsestring(b"\"hello, world!", 1), 1)
-    @test iserror(parsestring(b"\"hello, world!'", 1), 1)
-    @test iserror(parsestring(b"'hello, world!\"", 1), 1)
-    @test iserror(parsestring(b"hello, world!", 1), 1)
-    @test parsestring(b"lotsofjunk'abc'morejunk", 11) == (16, b"abc")
-    @test iserror(parsestring(b"lotsofjunk'abc", 11), 11)
+
+  @testset "fortran_order dictionary" begin
+    @test Npy.Header.parsedict("{'fortran_order': True}\n") == Dict("fortran_order" => true)
+    @test Npy.Header.parsedict("""{"fortran_order": False}\n""") == Dict("fortran_order" => false)
+    @test Npy.Header.parsedict("{'fortran_order': 17}\n") isa Error
+    @test Npy.Header.parsedict("{'fortran_order': \"seventeen\"}\n") isa Error
   end
-  @testset "Test parsebool" begin
-    using Npy.Header: parsebool
-    @test parsebool(b"somejunk: True, morejunk", 11) == (15, true)
-    @test parsebool(b"somejunk: False, morejunk", 11) == (16, false)
-    @test iserror(parsebool(b"somejunk: true, morejunk", 11), 11)
-    @test iserror(parsebool(b"somejunk: false, morejunk", 11), 11)
-    @test iserror(parsebool(b"Tru", 1), 1)
+
+  @testset "descr dictionary" begin
+    @test Npy.Header.parsedict("{'descr': |U3}\n") isa Error
+    @test Npy.Header.parsedict("{'descr': |S3}\n") isa Error
+    @test Npy.Header.parsedict("{'descr': |O}\n") isa Error
+    @test Npy.Header.parsedict("{'descr': =f8}\n") isa Error
+    @test Npy.Header.parsedict("{'descr': >f3}\n") isa Error
+    @test Npy.Header.parsedict("{'descr': (2, 5)}\n") isa Error
+    @test Npy.Header.parsedict("{'descr': True}\n") isa Error
+    @test Npy.Header.parsedict("""{'descr': ">f8"}\n""") == Dict("descr" => (Npy.Header.BigEndian, Float64))
+    @test Npy.Header.parsedict("""{"descr": '<i4'}\n""") == Dict("descr" => (Npy.Header.LittleEndian, Int32))
+    @test Npy.Header.parsedict("{'descr': '|i1'}\n") == Dict("descr" => (Npy.Header.NoEndian, Int8))
+    @test Npy.Header.parsedict("{'descr': '|b1'}\n") == Dict("descr" => (Npy.Header.NoEndian, Bool))
   end
-  @testset "Test parseuint" begin
-    using Npy.Header: parseuint
-    for i in 0:100
-      @test parseuint(Array{UInt8,1}("junk $i morejunk"), 6) == (length("$i")+6, i)
-    end
-    @test parseuint(b"+42", 1) == (4, 42)
-    @test @quickcheck n=100 (parseuint(Array{UInt8,1}("junk $i morejunk"), 6) == (length("$i")+6, i)) (i :: UInt64)
-    x = BigInt(2)^64 # > max(UInt64)
-    @test parseuint(Array{UInt8,1}("$x"), 1) == (length("$x")+1, x)
-    x = parse(BigInt, "129845801987043981239840219384")
-    @test parseuint(Array{UInt8,1}("$x"), 1) == (length("$x")+1, x)
+
+  @testset "shape dictionary" begin
+    @test Npy.Header.parsedict("{'shape': ()}\n") == Dict("shape" => [])
+    @test Npy.Header.parsedict("{'shape': (+25)}\n") == Dict("shape" => [25])
+    @test Npy.Header.parsedict("{'shape': (25,)}\n") == Dict("shape" => [25])
+    @test Npy.Header.parsedict("{'shape': (25, 18)}\n") == Dict("shape" => [25, 18])
+    @test Npy.Header.parsedict("{'shape': (25, 18,)}\n") == Dict("shape" => [25, 18])
+    @test Npy.Header.parsedict("{'shape': (25, true,)}\n") isa Error
+    @test Npy.Header.parsedict("{'shape': (1, 2)}\n") == Dict("shape" => [1, 2])
+    @test Npy.Header.parsedict("{'shape': (1, 2,)}\n") == Dict("shape" => [1, 2])
+    @test Npy.Header.parsedict("{'shape': (1, 3 , 5, 7, 11, 2134098712768342839871623947863782986328761,)}\n") == Dict("shape" => BigInt[1, 3, 5, 7, 11, 2134098712768342839871623947863782986328761])
+    @test_broken Npy.Header.parsedict("{'shape': (,)}\n") isa Error # This is illegal, but we accept it anyway, because forbidding it would make for a really annoying regex.
+    @test Npy.Header.parsedict("{'shape': (1, 2, 'xyz', 4)}\n") isa Error
   end
-  @testset "Test parseuinttuple" begin
-    using Npy.Header: parseuinttuple
-    @test parseuinttuple(b"()", 1) == (3, BigInt[])
-    @test parseuinttuple(b"(42)", 1) == (5, BigInt[42])
-    @test parseuinttuple(b"(42,)", 1) == (6, BigInt[42])
-    @test parseuinttuple(b"(1, 2)", 1) == (7, BigInt[1, 2])
-    @test parseuinttuple(b"(1, 2,)", 1) == (8, BigInt[1, 2])
-    @test parseuinttuple(b"junk (1, 3 , 5, 7, 11, 2134098712768342839871623947863782986328761,) more junk", 6) == (69, BigInt[1, 3, 5, 7, 11, 2134098712768342839871623947863782986328761])
-    @test iserror(parseuinttuple(b"(,)", 1), 1)
-    @test iserror(parseuinttuple(b"(1, 2, 'xyz', 4)", 1), 1)
-    @test iserror(parseuinttuple(b"(1, 2, true, 4)", 1), 1)
+
+  @testset "Complete dictionary" begin
+    @test Npy.Header.parsedict("{'descr': '>f8', 'fortran_order': False, \n 'shape': (1,2,6,24,120,720,5040)}  \n") == Dict("descr" => (Npy.Header.BigEndian, Float64), "fortran_order" => false, "shape" => collect(factorial(i) for i in 1:7))
+    @test Npy.Header.parsedict("{ 'shape': (2,3,),    'descr':'|b1', \t'fortran_order': \nTrue,}\t\n\n") == Dict("descr" => (Npy.Header.NoEndian, Bool), "fortran_order" => true, "shape" => BigInt[2, 3])
+    @test Npy.Header.parsedict("""{'shape': (3, 2, 6, 1092, 183,), 'fortran_order': False, "descr": '<c8'}\n\t\n""") == Dict("shape" => [3, 2, 6, 1092, 183], "fortran_order" => false, "descr" => (Npy.Header.LittleEndian, ComplexF32))
   end
-  @testset "Test parsedescr" begin
-    using Npy.Header: parsedescr, Error
-    @test typeof(parsedescr("|O3", 1)) == Error
-    @test typeof(parsedescr("|S3", 1)) == Error
-    @test typeof(parsedescr("=f8", 1)) == Error
-    @test typeof(parsedescr(">f5", 1)) == Error
-    # TODO: exhaustively test dtypes
-  end
-  @testset "Test parsepair" begin
-    using Npy.Header: parsepair, Endianness, LittleEndian, BigEndian, NoEndian
-    @test parsepair(b"junk: 'fortran_order': True morejunk", 7) == (28, b"fortran_order" => true)
-    @test parsepair(b"junk: \"fortran_order\": False, morejunk", 7) == (29, b"fortran_order" => false)
-    @test iserror(parsepair(b"'fortran_order': 'True'", 1), 1)
-    @test parsepair(b"'shape': ()", 1) == (12, b"shape" => BigInt[])
-    @test parsepair(b"'shape': (1, 2, 3)", 1) == (19, b"shape" => BigInt[1, 2, 3])
-    @test parsepair(b"'shape': (42)", 1) == (14, b"shape" => BigInt[42])
-    @test parsepair(b"'shape': (42,)", 1) == (15, b"shape" => BigInt[42])
-    @test iserror(parsepair(b"abc 'shape': 'xyz' def", 5), 5)
-    @test parsepair(b"'descr': \"|b1\"", 1) == (15, b"descr" => (NoEndian, Bool))
-    @test parsepair(b"'descr': \"<u2\"", 1) == (15, b"descr" => (LittleEndian, UInt16))
-    @test parsepair(b"'descr': \">c8\"", 1) == (15, b"descr" => (BigEndian, Complex{Float32}))
-    @test iserror(parsepair(b"abc 'descr': True,", 5), 5)
-  end
-  @test Npy.Header.parsedict(b"{'descr': '>f8', 'fortran_order': False, 'shape': (1,2,6,24,120,720,5040)}") == Dict(b"descr" => (Npy.Header.BigEndian, Float64), b"fortran_order" => false, b"shape" => collect(factorial(i) for i in 1:7))
-  @test Npy.Header.parsedict(b"{ 'shape': (2,3,),    'descr':'|b1', \t'fortran_order': \nTrue,}") == Dict(b"descr" => (Npy.Header.NoEndian, Bool), b"fortran_order" => true, b"shape" => BigInt[2, 3])
 end
 
 

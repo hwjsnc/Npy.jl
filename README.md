@@ -69,13 +69,6 @@ The current version in 0.1.0.
 Bugs and caveats
 ----------------
 
-- "Cold" performance is very bad:
-  The first `NpyArray("file")` takes five to ten seconds.
-  This is mainly due to parsing the header.
-- There are no performance benchmarks available.
-  To give a rough impression:
-  On the author's laptop, reading a 10 GB file (with Float64 entries and shape (50, 125, 200, 1000)) and summing its entries takes around 25 s when Julia was just started and the file is not cached; and 9.8 s when all relevant functions are precompiled and the file is cached.
-  For comparison, summing an equivalent Array (completely in main memory) takes 0.7 s.
 - This package does not support writing .npy version 2.0.
   This is not expected to be a problem as long as the data size does not reach approximately 10^6500 bytes (or the data files have more than approximately 2900 dimensions).
 - Creating .npy files from an `AbstractArray` with non-standard axes is neither supported nor tested and may silently eat your data.
@@ -87,6 +80,14 @@ Bugs and caveats
   Using a linear index corresponding to one serialization order with an array of the other serialization order (and same shape) is incorrect, and impossible to detect.
   Using `CartesianIndices` is perfectly fine and is automatically used when broadcasting or looping over an `NpyArray`.
   If you need linear indexing, use `collect` to copy its data to a normal Julia `Array`.
+- "Cold" performance is quite bad:
+  The first `NpyArray("file")` takes two or three seconds (on a slow VPS).
+  This is mainly due to parsing the header.
+  Opening another `NpyArray` after the constructor is precompiled takes a few hundred microseconds.
+- There are no performance benchmarks available.
+  To give a rough impression:
+  On the author's laptop, reading a 10 GB file (with Float64 entries and shape (50, 125, 200, 1000)) and summing its entries takes around 25 s when Julia was just started and the file is not cached; and 9.8 s when all relevant functions are precompiled and the file is cached.
+  For comparison, summing an equivalent Array (completely in main memory) takes 0.7 s.
 
 
 Copying

@@ -153,34 +153,35 @@ function parseuinttuple(s, offset) # TODO: remove
 end
 
 
+descr_regex = r"""
+  ('|")descr\1
+  \s* : \s*
+  ('|")
+    (?<endianness>[><|=])
+    (?<dtype>[[:alnum:]]+)
+  \2
+"""x :: Regex
+fortran_order_regex = r"""
+  ('|")fortran_order\1
+  \s* : \s*
+  (?<val>True|False)
+"""x :: Regex
+shape_regex = r"""
+  ('|")shape\1
+  \s* : \s*
+  (?<shape>
+    \(
+      \s*
+      (\+?\d+)?
+      \s*
+      (, \s* \+?\d+ \s* )
+      *\s*
+      (,\s*)?
+    \)
+  )
+"""x :: Regex
+
 function parsepair(s, offset)
-  descr_regex = r"""
-    ('|")descr\1
-    \s* : \s*
-    ('|")
-      (?<endianness>[><|=])
-      (?<dtype>[[:alnum:]]+)
-    \2
-  """x
-  fortran_order_regex = r"""
-    ('|")fortran_order\1
-    \s* : \s*
-    (?<val>True|False)
-  """x
-  shape_regex = r"""
-    ('|")shape\1
-    \s* : \s*
-    (?<shape>
-      \(
-        \s*
-        (\+?\d+)?
-        \s*
-        (, \s* \+?\d+ \s* )
-        *\s*
-        (,\s*)?
-      \)
-    )
-  """x
   endiannesses = Dict(
     ">" => BigEndian,
     "<" => LittleEndian,

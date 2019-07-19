@@ -149,22 +149,9 @@ end
 
 
 function parseuint(s, offset)
-  offset <= length(s) || return (offset, Error(offset, "End of input while parsing a number"))
-  off = offset
-  if s[off] == '+'
-    off += 1
-    off <= length(s) || return (offset, Error(off, "End of input while parsing a number"))
-  end
-  for i in off:length(s)
-    if !isdigit(s[i])
-      if i == off # no digit read!
-        return (offset, Error(off, "Expected a digit, got '$(s[i])' while parsing a number"))
-      else
-        return (i, parse(BigInt, String(s[off:i-1])))
-      end
-    end
-  end
-  return (length(s)+1, parse(BigInt, String(s[off:length(s)])))
+  m = match(r"\+?\d+", s, offset)
+  m != nothing && m.offset == offset || return (offset, Error(offset, "Expected a number"))
+  return (offset+length(m.match), parse(BigInt, m.match))
 end
 
 

@@ -148,7 +148,7 @@ function parsebool(s, offset)
 end
 
 
-function parseuint(s, offset)
+function parseuint(s, offset) # TODO: remove
   m = match(r"\+?\d+", s, offset)
   m != nothing && m.offset == offset || return (offset, Error(offset, "Expected a number"))
   return (offset+length(m.match), parse(BigInt, m.match))
@@ -156,26 +156,10 @@ end
 
 
 function parseuinttuple(s, offset)
-  (off, x) = expect(s, offset, '(')
-  typeof(x) != Error || return (offset, x)
-  (off, _) = parsewhitespace(s, off)
-  tup = Array{BigInt,1}()
-  while true
-    (off, x) = parseuint(s, off)
-    if typeof(x) == Error
-      break
-    end
-    push!(tup, x)
-    (off, _) = parsewhitespace(s, off)
-    if off <= length(s) && s[off] == ','
-      (off, _) = parsewhitespace(s, off+1)
-    else
-      break
-    end
-  end
-  (off, x) = expect(s, off, ')')
-  typeof(x) != Error || return (offset, x)
-  return (off, tup)
+  m = match(r"\(\s*(\+?\d+)?\s*(,\s*\+?\d+\s*)*\s*,?\s*\)", s, offset) # match the whole tuple
+  m != nothing && m.offset == offset || return (offset, Error(offset, "Expected a tuple of ints"))
+  tup = collect(parse(BigInt, m2.match) for m2 in eachmatch(r"\+?\d+", m.match)) # Match each entry, convert to BigInt
+  return (offset + length(m.match), tup)
 end
 
 

@@ -124,14 +124,14 @@ function expect(s, offset, c :: Char)
 end
 
 
-function parsestring(s, offset)
+function parsestring(s, offset) # TODO: remove
   m = match(r"""('|")(?<key>[^'"]*)\1""", s, offset) # Note: We do not handle escape sequences.
   m != nothing && m.offset == offset || return (offset, Error(offset, "Expected a String"))
   return (offset + length(m.match), m[:key])
 end
 
 
-function parsebool(s, offset)
+function parsebool(s, offset) # TODO: remove
   m = match(r"(True|False)", s, offset)
   m != nothing && m.offset == offset || return (offset, Error(offset, "Got neither True nor False while parsing a bool."))
   return (offset + length(m.match), m[1] == "True")
@@ -145,7 +145,7 @@ function parseuint(s, offset) # TODO: remove
 end
 
 
-function parseuinttuple(s, offset)
+function parseuinttuple(s, offset) # TODO: remove
   m = match(r"\(\s*(\+?\d+)?\s*(,\s*\+?\d+\s*)*\s*,?\s*\)", s, offset) # match the whole tuple
   m != nothing && m.offset == offset || return (offset, Error(offset, "Expected a tuple of ints"))
   tup = collect(parse(BigInt, m2.match) for m2 in eachmatch(r"\+?\d+", m.match)) # Match each entry, convert to BigInt
@@ -154,27 +154,25 @@ end
 
 
 function parsepair(s, offset)
-  (off, x) = parsestring(s, offset)
-  typeof(x) != Error || return (offset, x)
-  key = x
-  if !(key in ["descr", "fortran_order", "shape"])
-    return (offset, Error(offset, "Invalid key \"$(String(key))\"")) # Should be offset, not off.
-  end
-  (off, _) = parsewhitespace(s, off)
-  (off, c) = expect(s, off, ':')
-  typeof(c) != Error || return (offset, c)
-  (off, _) = parsewhitespace(s, off)
+  m = match(r"""('|")(?<key>descr|fortran_order|shape)\1\s*:\s*""", s, offset)
+  m != nothing && m.offset == offset || return (offset, Error(offset, "Invalid pair"))
+  key = m[:key]
+  off = offset + length(m.match)
   if key == "descr"
-    off_ = off
-    (off, val) = parsestring(s, off)
-    typeof(val) != Error || return (offset, val)
-    val = parsedescr(val, off_)
+    m = match(r"""('|")(?<endianness>[><|=])(?<dtype>[[:alnum:]]+)\1""", s, off)
+    m != nothing && m.offset == off || return (offset, Error(offset, "Invalid value for key 'descr'"))
+    val = parsedescr(m[:endianness] * m[:dtype], off) # TODO: inline
+    off += length(m.match)
   elseif key == "fortran_order"
-    (off, val) = parsebool(s, off)
+    m = match(r"(True|False)", s, off)
+    m != nothing && m.offset == off || return (offset, Error(offset, "Invalid value for key 'fortran_order'"))
+    val = (m[1] == "True")
+    off += length(m.match)
   elseif key == "shape"
-    (off, val) = parseuinttuple(s, off)
-  else
-    error("npy.jl BUG: invalid key")
+    m = match(r"\(\s*(\+?\d+)?\s*(,\s*\+?\d+\s*)*\s*,?\s*\)", s, off) # match the whole tuple
+    m != nothing && m.offset == off || return (offset, Error(offset, "Invalid value for key 'shape'"))
+    val = collect(parse(BigInt, m2.match) for m2 in eachmatch(r"\+?\d+", m.match)) # Match each entry, convert to BigInt
+    off += length(m.match)
   end
   typeof(val) != Error || return (offset, val)
   return (off, key => val)

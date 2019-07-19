@@ -124,16 +124,6 @@ function expect(s, offset, c :: Char)
 end
 
 
-function expect(s, offset, chars :: Array{Char,1})
-  offset <= length(s) || return (offset, Error(offset, "Missing one of $chars"))
-  chr = s[offset]
-  if !(chr in chars)
-    return (offset, Error(offset, "Expected one of $chars, got '$chr'"))
-  end
-  return (offset+1, chr)
-end
-
-
 function parsestring(s, offset)
   m = match(r"""('|")(?<key>[^'"]*)\1""", s, offset) # Note: We do not handle escape sequences.
   m != nothing && m.offset == offset || return (offset, Error(offset, "Expected a String"))

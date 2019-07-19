@@ -82,10 +82,55 @@ function parsedict(s)
   dict = Dict()
   while off <= length(s) && s[off] != '}'
     off_ = off
-    (off, p) = parsepair(s, off)
-    typeof(p) != Error || return p
-    !haskey(dict, p[1]) || return Error(off_, "Duplicate key \"$(p[1])\"")
-    push!(dict, p)
+    if (m = match(descr_regex, s, off)) != nothing && m.offset == off
+      endiannesses = Dict(
+        ">" => BigEndian,
+        "<" => LittleEndian,
+        "|" => NoEndian,
+        # Host endianness is a terrible choice for long-term storage of data.
+        "=" => Error(off, "\"Host\" endianness is intentionally unsupported")
+      )
+      datatypes = Dict(
+        "b1" => Bool,
+        "i1" => Int8,
+        "i2" => Int16,
+        "i4" => Int32,
+        "i8" => Int64,
+        "u1" => UInt8,
+        "u2" => UInt16,
+        "u4" => UInt32,
+        "u8" => UInt64,
+        "f4" => Float32,
+        "f8" => Float64,
+        "c8" => Complex{Float32},
+        "c16" => Complex{Float64},
+        # These four cannot be read without parsing (and thus reading) the whole file (as far as the author knows).
+        "U3" => Error(off, "UTF-8 descr is unsupported"),
+        "S3" => Error(off, "String descr is unsupported"),
+        "O" => Error(off, "Object descr is unsupported"),
+      )
+      datatype = get(datatypes, m[:dtype], Error(off, "Unknown or invalid dtype '$(m[:dtype])'"))
+      typeof(datatype) != Error || return datatype
+      endianness = get(endiannesses, m[:endianness], Error(off, "npy.jl BUG: unknown endianness '$(m[:endianness])'"))
+      typeof(endianness) != Error || return endianness
+      endianness != NoEndian || sizeof(datatype) == 1 || return Error(off, "dtype is $(String(m[:dtype])), but no endianness is given")
+      key = "descr"
+      val = (endianness, datatype)
+      off += length(m.match)
+    elseif (m = match(fortran_order_regex, s, off)) != nothing && m.offset == off
+      key = "fortran_order"
+      val = (m[:val] == "True")
+      off += length(m.match)
+    elseif (m = match(shape_regex, s, off)) != nothing && m.offset == off
+      number_regex = r"\+?\d+"
+      key = "shape"
+      val = collect(parse(BigInt, m2.match) for m2 in eachmatch(number_regex, m[:shape]))
+      off += length(m.match)
+    else
+      return Error(off, "Invalid key-value pair")
+    end
+    #!haskey(dict, key) || return Error(off_, "Duplicate key \"$key\"") # XXX
+    push!(dict, key => val)
     m = match(r"\s*(,\s*)?", s, off)
     @assert m != nothing && m.offset == off
     off += length(m.match)

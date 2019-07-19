@@ -135,20 +135,9 @@ end
 
 
 function parsestring(s, offset)
-  offset <= length(s) || return (offset, Error(offset, "End of input while parsing a string"))
-  off = offset
-  (off, x) = expect(s, offset, ['\'', '"'])
-  typeof(x) != Error || return (offset, x)
-  delim = x
-  for i in off:length(s)
-    c = s[i]
-    if c == delim || !isascii(c) || !isprint(c) # Note: We do not handle escape sequences.
-      (off, x) = expect(s, i, delim)
-      typeof(x) != Error || return (offset, x)
-      return (off, s[offset+1:i-1])
-    end
-  end
-  return (offset, Error(length(s), "Unterminated string"))
+  m = match(r"""('|")(?<key>[^'"]*)\1""", s, offset) # Note: We do not handle escape sequences.
+  m != nothing && m.offset == offset || return (offset, Error(offset, "Expected a String"))
+  return (offset + length(m.match), m[:key])
 end
 
 

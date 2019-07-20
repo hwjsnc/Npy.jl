@@ -251,6 +251,11 @@ function parsedict(s)
   return dict
 end
 
+# Let's cheat.
+# This precompiles the header parser and makes opening the first much quicker, giving a better impression.
+# Of course, this comes at the expense of a longer import time.
+_ = parseheader(Vector{UInt8}("\x93NUMPY\1\0\x46\0{'descr': '|b1', 'fortran_order': False, 'shape': (1,1,1)}           \n\0"))
+
 
 function writeheader(endianness :: Endianness, T :: DataType, shape, fortran_order :: Bool)
   tuplestring = if length(shape) == 1; "($(shape[1]),)"; else string("(", join(shape, ", ", ","), ")"); end

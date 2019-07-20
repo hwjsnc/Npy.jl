@@ -80,10 +80,9 @@ Bugs and caveats
   Using a linear index corresponding to one serialization order with an array of the other serialization order (and same shape) is incorrect, and impossible to detect.
   Using `CartesianIndices` is perfectly fine and is automatically used when broadcasting or looping over an `NpyArray`.
   If you need linear indexing, use `collect` to copy its data to a normal Julia `Array`.
-- "Cold" performance is quite bad:
-  The first `NpyArray("file")` takes two or three seconds (on a slow VPS).
-  This is mainly due to parsing the header.
-  Opening another `NpyArray` after the constructor is precompiled takes a few hundred microseconds.
+- "Cold" performance is a bit slow:
+  The first `NpyArray("file")` takes around one second (on a slow VPS).
+  Opening another `NpyArray` afterwards takes one or two hundred microseconds.
 - There are no performance benchmarks available.
   To give a rough impression:
   On the author's laptop, reading a 10 GB file (with Float64 entries and shape (50, 125, 200, 1000)) and summing its entries takes around 25 s when Julia was just started and the file is not cached; and 9.8 s when all relevant functions are precompiled and the file is cached.
@@ -135,4 +134,4 @@ TODO
 - fuzz?
 - test on big endian
 - re-check everything
-- Re-write parser for compilation speed?
+- check if rewriting (parts of) the constructors (with less indirection?) can give better cold performance

@@ -75,101 +75,123 @@ function parseheader(s)
 end
 
 
-descr_regex = r"""
-  ('|")descr\1
-  \s* : \s*
-  ('|")
-    (?<endianness>[><|=])
-    (?<dtype>[[:alnum:]]+)
-  \2
-"""x :: Regex
-fortran_order_regex = r"""
-  ('|")fortran_order\1
-  \s* : \s*
-  (?<val>True|False)
-"""x :: Regex
-shape_regex = r"""
-  ('|")shape\1
-  \s* : \s*
-  (?<shape>
-    \(
-      \s*
-      (\+?\d+)?
-      \s*
-      (, \s* \+?\d+ \s* )
-      *\s*
-      (,\s*)?
-    \)
-  )
+#=
+Note
+----
+
+This regex does not exactly match the required grammar.
+
+Differences are:
+- Comma delimiters are optional.
+  They should be mandatory, but the trailing comma needs to be optional.
+  It is impossible (?) to achieve both without repeating the key-value regexes.
+  This would increase the regex by a lot and make capturing more difficult.
+- Entries may be repeated; later entries override earlier ones.
+
+Design note
+-----------
+
+Using this regex to parse the header dictionary is obviously terrible.
+However, it compiles quite quickly (~1 second to parse a header for the first time).
+As an alternative, parsing through recursive descent takes ~5 seconds to compile.
+For an expected usage of opening only a few .npy files per script / REPL session, this can be a significant part of the run time, especially for analysis scripts.
+This long compile time was deemed unacceptable for productive use.
+Instead of using this regex, a parser (combinator) library might be used.
+This would be much cleaner, but would also require a third-party dependency.
+
+Rant
+----
+
+That this abomination of a regex is required (and still doesn't capture the grammar) shows how badly designed the .npy spec is.
+Imnsho, it should exactly specify
+- the string delimiters (single or double quote),
+- that trailing commas are either mandatory or forbidden,
+- the order in which the keys shall appear,
+- that a plus-sign for the size is forbidden,
+- that only spaces are allowed as whitespace (except for the final \n),
+- where space is allowed or required (e. g. no space between keys and colons).
+These would make parsing much more simple to implement without hindering reverse engineering of the format.
+=#
+dict_regex = r"""
+  \s* { \s*
+    (?:(?:
+      (?# Parse 'descr', capture endianness, dtype )
+      (?<descrdelim>['"])descr\g{descrdelim}
+      \s* : \s*
+      (?<descrvaldelim>['"])
+        (?<endianness>[><|=])
+        (?<dtype>[[:alnum:]]+)
+      \g{descrvaldelim}
+
+      (?# Parse shape, capture the shape-tuple.
+          The entries are not parsed here because is not possible to capture a variable number of matches.
+          They are matched seperately. )
+    | (?<shapedelim>['"])shape\g{shapedelim}
+        \s* : \s*
+        (?<shape>
+          \( \s*
+            (\+?\d+ \s* (?:,\s*)?)*
+          \)
+        )
+
+      (?# Parse fortran_order, capture the truthiness )
+    | (?<fodelim>['"])fortran_order\g{fodelim}
+        \s* : \s*
+        (?<fortran_order>True|False)
+    ) \s* (,\s*)? )*
+  \s* } \s* \n
 """x :: Regex
 
+
 function parsedict(s)
-  m = match(r"\s*{\s*", s)
-  m != nothing && m.offset == 1 || return Error(1, "Expected '{' at beginning of header dictionary.")
-  off = length(m.match) + 1
+  m = match(dict_regex, s)
+  m != nothing && m.offset == 1 || return Error(1, "Invalid header dictionary.")
+
   dict = Dict()
-  while off <= length(s) && s[off] != '}'
-    off_ = off
-    if (m = match(descr_regex, s, off)) != nothing && m.offset == off
-      endiannesses = Dict(
-        ">" => BigEndian,
-        "<" => LittleEndian,
-        "|" => NoEndian,
-        # Host endianness is a terrible choice for long-term storage of data.
-        "=" => Error(off, "\"Host\" endianness is intentionally unsupported")
-      )
-      datatypes = Dict(
-        "b1" => Bool,
-        "i1" => Int8,
-        "i2" => Int16,
-        "i4" => Int32,
-        "i8" => Int64,
-        "u1" => UInt8,
-        "u2" => UInt16,
-        "u4" => UInt32,
-        "u8" => UInt64,
-        "f4" => Float32,
-        "f8" => Float64,
-        "c8" => Complex{Float32},
-        "c16" => Complex{Float64},
-        # These four cannot be read without parsing (and thus reading) the whole file (as far as the author knows).
-        "U3" => Error(off, "UTF-8 descr is unsupported"),
-        "S3" => Error(off, "String descr is unsupported"),
-        "O" => Error(off, "Object descr is unsupported"),
-      )
-      datatype = get(datatypes, m[:dtype], Error(off, "Unknown or invalid dtype '$(m[:dtype])'"))
-      typeof(datatype) != Error || return datatype
-      endianness = get(endiannesses, m[:endianness], Error(off, "npy.jl BUG: unknown endianness '$(m[:endianness])'"))
-      typeof(endianness) != Error || return endianness
-      endianness != NoEndian || sizeof(datatype) == 1 || return Error(off, "dtype is $(String(m[:dtype])), but no endianness is given")
-      key = "descr"
-      val = (endianness, datatype)
-      off += length(m.match)
-    elseif (m = match(fortran_order_regex, s, off)) != nothing && m.offset == off
-      key = "fortran_order"
-      val = (m[:val] == "True")
-      off += length(m.match)
-    elseif (m = match(shape_regex, s, off)) != nothing && m.offset == off
-      number_regex = r"\+?\d+"
-      key = "shape"
-      val = collect(parse(BigInt, m2.match) for m2 in eachmatch(number_regex, m[:shape]))
-      off += length(m.match)
-    else
-      return Error(off, "Invalid key-value pair")
-    end
-    #!haskey(dict, key) || return Error(off_, "Duplicate key \"$key\"") # XXX
-    push!(dict, key => val)
-    m = match(r"\s*(,\s*)?", s, off)
-    @assert m != nothing && m.offset == off
-    off += length(m.match)
-    if isempty(m.captures) # no ","
-      break
-    end
+  if m[:endianness] != nothing
+    @assert m[:dtype] != nothing
+    endiannesses = Dict(
+      ">" => BigEndian,
+      "<" => LittleEndian,
+      "|" => NoEndian,
+      # Host endianness is a terrible choice for long-term storage of data.
+      "=" => Error(1, "\"Host\" endianness is intentionally unsupported")
+    )
+    datatypes = Dict(
+      "b1" => Bool,
+      "i1" => Int8,
+      "i2" => Int16,
+      "i4" => Int32,
+      "i8" => Int64,
+      "u1" => UInt8,
+      "u2" => UInt16,
+      "u4" => UInt32,
+      "u8" => UInt64,
+      "f4" => Float32,
+      "f8" => Float64,
+      "c8" => Complex{Float32},
+      "c16" => Complex{Float64},
+      # These four cannot be read without parsing (and thus reading) the whole file (as far as the author knows).
+      "U3" => Error(1, "UTF-8 descr is unsupported"),
+      "S3" => Error(1, "String descr is unsupported"),
+      "O" => Error(1, "Object descr is unsupported"),
+    )
+    datatype = get(datatypes, m[:dtype], Error(1, "Unknown or invalid dtype '$(m[:dtype])'"))
+    typeof(datatype) != Error || return datatype
+    endianness = get(endiannesses, m[:endianness], Error(1, "npy.jl BUG: unknown endianness '$(m[:endianness])'"))
+    typeof(endianness) != Error || return endianness
+    endianness != NoEndian || sizeof(datatype) == 1 || return Error(1, "dtype is $(String(m[:dtype])), but no endianness is given")
+    push!(dict, "descr" => (endianness, datatype))
   end
-  m = match(r"\s*}\s*\n"s, s, off)
-  m != nothing && m.offset == off || return Error(off, "Header dictionary not closed correctly")
-  off += length(m.match)
-  off == length(s)+1 || return Error(1, "Junk character '$(s[off])' after end of header dictionary")
+  if m[:fortran_order] != nothing
+    push!(dict, "fortran_order" => m[:fortran_order] == "True")
+  end
+  if m[:shape] != nothing
+    number_regex = r"\+?\d+"
+    shape = collect(parse(BigInt, m2.match) for m2 in eachmatch(number_regex, m[:shape]))
+    push!(dict, "shape" => shape)
+  end
+
   return dict
 end
 

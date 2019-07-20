@@ -67,14 +67,17 @@ using RandomizedPropertyTest
     @test Npy.Header.parsedict("{'shape': (1, 2)}\n") == Dict("shape" => [1, 2])
     @test Npy.Header.parsedict("{'shape': (1, 2,)}\n") == Dict("shape" => [1, 2])
     @test Npy.Header.parsedict("{'shape': (1, 3 , 5, 7, 11, 2134098712768342839871623947863782986328761,)}\n") == Dict("shape" => BigInt[1, 3, 5, 7, 11, 2134098712768342839871623947863782986328761])
-    @test_broken Npy.Header.parsedict("{'shape': (,)}\n") isa Error # This is illegal, but we accept it anyway, because forbidding it would make for a really annoying regex.
+    @test Npy.Header.parsedict("{'shape': (,)}\n") isa Error
     @test Npy.Header.parsedict("{'shape': (1, 2, 'xyz', 4)}\n") isa Error
+    @test_broken Npy.Header.parsedict("{'shape': (1 2 3)}\n") isa Error
   end
 
   @testset "Complete dictionary" begin
     @test Npy.Header.parsedict("{'descr': '>f8', 'fortran_order': False, \n 'shape': (1,2,6,24,120,720,5040)}  \n") == Dict("descr" => (Npy.Header.BigEndian, Float64), "fortran_order" => false, "shape" => collect(factorial(i) for i in 1:7))
     @test Npy.Header.parsedict("{ 'shape': (2,3,),    'descr':'|b1', \t'fortran_order': \nTrue,}\t\n\n") == Dict("descr" => (Npy.Header.NoEndian, Bool), "fortran_order" => true, "shape" => BigInt[2, 3])
     @test Npy.Header.parsedict("""{'shape': (3, 2, 6, 1092, 183,), 'fortran_order': False, "descr": '<c8'}\n\t\n""") == Dict("shape" => [3, 2, 6, 1092, 183], "fortran_order" => false, "descr" => (Npy.Header.LittleEndian, ComplexF32))
+
+    @test_broken Npy.Header.parsedict("""{'shape': (1 9 42) "fortran_order": True "descr": '>u2'}\n""") isa Error
   end
 end
 

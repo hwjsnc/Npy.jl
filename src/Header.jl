@@ -151,6 +151,7 @@ function parseheader(s)
     headersize = Int32(s[9]) + Int32(s[10] << 8) + Int32(s[11] << 16) + Int32(s[12] << 24)
     offset = 13
   end
+  offset - 1 + headersize < length(s) || throw(ParseError("File is shorter than its purported header size."))
   (offset - 1 + headersize) % 16 == 0 || throw(ParseError("Header size is not a multiple of 16 bytes."))
   dict = parsedict(String(view(s, offset:offset-1+headersize)))
   for k in ["descr", "fortran_order", "shape"]

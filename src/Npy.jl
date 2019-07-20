@@ -41,27 +41,8 @@ using .Header: Endianness, LittleEndian, BigEndian, NoEndian
 export NpyArray, sync!
 
 
-SupportedTypeUnion, SupportedTypesTypes = let
-  supportedTypes = [
-    Bool,
-    Int8,
-    Int16,
-    Int32,
-    Int64,
-    UInt8,
-    UInt16,
-    UInt32,
-    UInt64,
-    Float32,
-    Float64,
-    Complex{Float32},
-    Complex{Float64},
-  ]
-  (
-    eval(Expr(:curly, Union, (t for t in supportedTypes)...)),
-    eval(Expr(:curly, Union, (Expr(:curly, Type, t) for t in supportedTypes)...)),
-  )
-end
+SupportedTypeUnion = eval(Expr(:curly, Union, (t for t in Header.dtypes_T)...))
+SupportedTypesTypes = eval(Expr(:curly, Union, (Expr(:curly, Type, t) for t in Header.dtypes_T)...))
 
 
 #=

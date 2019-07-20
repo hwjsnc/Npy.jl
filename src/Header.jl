@@ -37,6 +37,95 @@ end
 @enum Endianness BigEndian LittleEndian NoEndian
 
 
+function String(e :: Endianness)
+  if e == BigEndian
+    return ">"
+  elseif e == LittleEndian
+    return "<"
+  elseif e == NoEndian
+    return "|"
+  end
+  @assert false
+end
+
+
+function endianness(s :: AbstractString)
+  if s == ">"
+    return BigEndian
+  elseif s == "<"
+    return LittleEndian
+  elseif s == "|"
+    return NoEndian
+  elseif s == "="
+    return Error(0, "Host endianness is intentionally unsupported.")
+  end
+  return Error(0, "Unknown endianness $s.")
+end
+
+
+dtypes_s = [
+  "b1",
+  "i1",
+  "i2",
+  "i4",
+  "i8",
+  "u1",
+  "u2",
+  "u4",
+  "u8",
+  "f4",
+  "f8",
+  "c8",
+  "c16",
+]
+
+dtypes_T = [
+  Bool,
+  Int8,
+  Int16,
+  Int32,
+  Int64,
+  UInt8,
+  UInt16,
+  UInt32,
+  UInt64,
+  Float32,
+  Float64,
+  Complex{Float32},
+  Complex{Float64},
+]
+
+# These four cannot be read without parsing (and thus reading) the whole file (as far as the author knows).
+# They are unsuited to being mmapped and thus are not supported.
+unsupported_datatypes = Dict(
+  "U3" => "UTF-8 String",
+  "S3" => "String",
+  "O" => "Object",
+)
+
+function T_from_dt(dtype :: AbstractString)
+  for i in eachindex(dtypes_s)
+    if dtypes_s[i] == dtype
+      return dtypes_T[i]
+    end
+  end
+  if dtype in keys(unsupported_datatypes)
+    return Error(0, "$(unsupported_datatypes[dtype]) data type is not supported.")
+  end
+  return Error(0, "Unknown dtype '$dtype'.")
+end
+
+
+function dt_from_T(T :: DataType)
+  for i in eachindex(dtypes_T)
+    if dtypes_T[i] == T
+      return dtypes_s[i]
+    end
+  end
+  return Error(0, "Unsupported data type $T.")
+end
+
+
 struct NpyHeader
   data_offset :: BigInt
   shape :: Array{BigInt,1}
@@ -145,43 +234,17 @@ dict_regex = r"""
 
 function parsedict(s)
   m = match(dict_regex, s)
-  m != nothing && m.offset == 1 || return Error(1, "Invalid header dictionary.")
+  m != nothing && m.offset == 1 || return Error(1, "Invalid header dictionary")
 
   dict = Dict()
   if m[:endianness] != nothing
     @assert m[:dtype] != nothing
-    endiannesses = Dict(
-      ">" => BigEndian,
-      "<" => LittleEndian,
-      "|" => NoEndian,
-      # Host endianness is a terrible choice for long-term storage of data.
-      "=" => Error(1, "\"Host\" endianness is intentionally unsupported")
-    )
-    datatypes = Dict(
-      "b1" => Bool,
-      "i1" => Int8,
-      "i2" => Int16,
-      "i4" => Int32,
-      "i8" => Int64,
-      "u1" => UInt8,
-      "u2" => UInt16,
-      "u4" => UInt32,
-      "u8" => UInt64,
-      "f4" => Float32,
-      "f8" => Float64,
-      "c8" => Complex{Float32},
-      "c16" => Complex{Float64},
-      # These four cannot be read without parsing (and thus reading) the whole file (as far as the author knows).
-      "U3" => Error(1, "UTF-8 descr is unsupported"),
-      "S3" => Error(1, "String descr is unsupported"),
-      "O" => Error(1, "Object descr is unsupported"),
-    )
-    datatype = get(datatypes, m[:dtype], Error(1, "Unknown or invalid dtype '$(m[:dtype])'"))
-    typeof(datatype) != Error || return datatype
-    endianness = get(endiannesses, m[:endianness], Error(1, "npy.jl BUG: unknown endianness '$(m[:endianness])'"))
+    T = T_from_dt(m[:dtype])
+    typeof(T) != Error || return datatype
+    e = endianness(m[:endianness])
     typeof(endianness) != Error || return endianness
-    endianness != NoEndian || sizeof(datatype) == 1 || return Error(1, "dtype is $(String(m[:dtype])), but no endianness is given")
-    push!(dict, "descr" => (endianness, datatype))
+    endianness != NoEndian || sizeof(T) == 1 || return Error(1, "dtype is $(String(m[:dtype])), but no endianness is given")
+    push!(dict, "descr" => (e, T))
   end
   if m[:fortran_order] != nothing
     push!(dict, "fortran_order" => m[:fortran_order] == "True")
@@ -196,33 +259,15 @@ function parsedict(s)
 end
 
 
-function writeheader(endianness :: Endianness, datatype :: DataType, shape, fortran_order :: Bool)
-  endiannesses = Dict(
-    BigEndian => '>',
-    LittleEndian => '<',
-    NoEndian => '|',
-  )
-  datatypes = Dict(
-    Bool => "b1",
-    Int8 => "i1",
-    Int16 => "i2",
-    Int32 => "i4",
-    Int64 => "i8",
-    UInt8 => "u1",
-    UInt16 => "u2",
-    UInt32 => "u4",
-    UInt64 => "u8",
-    Float32 => "f4",
-    Float64 => "f8",
-    Complex{Float32} => "c8",
-    Complex{Float64} => "c16",
-  )
+function writeheader(endianness :: Endianness, T :: DataType, shape, fortran_order :: Bool)
   tuplestring = if length(shape) == 1; "($(shape[1]),)"; else string("(", join(shape, ", ", ","), ")"); end
   fortran_order_string = if fortran_order; "True"; else "False"; end
-  if sizeof(datatype) == 1
+  if sizeof(T) == 1
     endianness = NoEndian
   end
-  dictstring = Array{UInt8,1}("{'descr': '$(endiannesses[endianness])$(datatypes[datatype])', 'fortran_order': $(fortran_order_string), 'shape': $(tuplestring)}")
+  dt = dt_from_T(T)
+  @assert typeof(dt) != Error
+  dictstring = Array{UInt8,1}("{'descr': '$(String(endianness))$(dt_from_T(T))', 'fortran_order': $(fortran_order_string), 'shape': $(tuplestring)}")
   length(dictstring) < 2^16 - 16 || error("For some unfathomable reason, the size of the header string exceeds 4 KiB.")
   if (length(dictstring) + 11) % 16 != 0 # Note: 11 = length(preheaderstring) + length(b"\n")
     padding = repeat(b" ", 16 - (length(dictstring) + 11) % 16)

@@ -21,15 +21,13 @@ Parse or write an .npy header
 Note:
  - The parser assumes ASCII encoding and does not handle escape sequences (which is ok for .npy)
  - Performance is not necessary for this function, since .npy header dictionaries are very small.
- - All functions return either a tuple (remaining input, result) on success, or a tuple (original input, err-struct) on failure, unless noted otherwise.
 """
 module Header
 
-export Error, parseheader, writeheader
+export ParseError, parseheader, writeheader
 
 
-struct Error
-  offset :: UInt64
+struct ParseError <: Exception
   msg :: String
 end
 
@@ -57,9 +55,9 @@ function endianness(s :: AbstractString)
   elseif s == "|"
     return NoEndian
   elseif s == "="
-    return Error(0, "Host endianness is intentionally unsupported.")
+    return throw(ParseError("Host endianness is intentionally unsupported."))
   end
-  return Error(0, "Unknown endianness $s.")
+  return throw(ParseError("Unknown endianness '$s'."))
 end
 
 
@@ -110,9 +108,9 @@ function T_from_dt(dtype :: AbstractString)
     end
   end
   if dtype in keys(unsupported_datatypes)
-    return Error(0, "$(unsupported_datatypes[dtype]) data type is not supported.")
+    throw(ParseError("$(unsupported_datatypes[dtype]) data type is not supported."))
   end
-  return Error(0, "Unknown dtype '$dtype'.")
+  throw(ParseError("Unknown dtype '$dtype'."))
 end
 
 
@@ -122,7 +120,7 @@ function dt_from_T(T :: DataType)
       return dtypes_s[i]
     end
   end
-  return Error(0, "Unsupported data type $T.")
+  @assert false
 end
 
 
@@ -138,15 +136,14 @@ end
 """`parseheader(s)`
 
 Parses the .npy header.
-Returns a tuple (data_offset, header_dict :: NpyHeader) on success, (error_offset, error :: Error) on failure.
-Entries of the header
+Returns an `NpyHeader` on success, throw `ParseError` on failure.
 """
 function parseheader(s)
-  length(s) >= 16 || return Error(0, "File too short to contain a header")
-  s[1:6] == b"\x93NUMPY" || return Error(0, "Magic header not present")
+  length(s) >= 16 || throw(ParseError("File too short to contain a header."))
+  s[1:6] == b"\x93NUMPY" || throw(ParseError("Magic header not present."))
   version = (s[7], s[8])
-  version[1] in [1, 2] || return Error(7, "Unknown major version $version")
-  version[2] == 0 || return Error(8, "Unknown minor version $version")
+  version[1] in [1, 2] || throw(ParseError("Unknown major version $version. Please update Npy.jl or report this error."))
+  version[2] == 0 || throw(ParseError("Unknown minor version $version. Please update Npy.jl or report this error."))
   if version[1] == 1
     headersize = Int16(s[9]) + Int16(s[10]) << 8
     offset = 11
@@ -154,11 +151,10 @@ function parseheader(s)
     headersize = Int32(s[9]) + Int32(s[10] << 8) + Int32(s[11] << 16) + Int32(s[12] << 24)
     offset = 13
   end
-  (offset - 1 + headersize) % 16 == 0 || return (0, Error(0, "Header size is not a multiple of 16 bytes"))
+  (offset - 1 + headersize) % 16 == 0 || throw(ParseError("Header size is not a multiple of 16 bytes."))
   dict = parsedict(String(view(s, offset:offset-1+headersize)))
-  typeof(dict) != Error || return dict
   for k in ["descr", "fortran_order", "shape"]
-    haskey(dict, k) || return Error(offset, "Header dict is missing key $k.")
+    haskey(dict, k) || throw(ParseError("Header dict is missing key $k."))
   end
   return NpyHeader(offset+headersize, dict["shape"], dict["descr"][2], dict["descr"][1], dict["fortran_order"])
 end
@@ -234,16 +230,13 @@ dict_regex = r"""
 
 function parsedict(s)
   m = match(dict_regex, s)
-  m != nothing && m.offset == 1 || return Error(1, "Invalid header dictionary")
-
+  m != nothing && m.offset == 1 || throw(ParseError("Header dictionary is not valid. If you are sure that it is, please report this error."))
   dict = Dict()
   if m[:endianness] != nothing
     @assert m[:dtype] != nothing
     T = T_from_dt(m[:dtype])
-    typeof(T) != Error || return datatype
     e = endianness(m[:endianness])
-    typeof(endianness) != Error || return endianness
-    endianness != NoEndian || sizeof(T) == 1 || return Error(1, "dtype is $(String(m[:dtype])), but no endianness is given")
+    endianness != NoEndian || sizeof(T) == 1 || throw(ParseError("Data type is $T, but no endianness is given."))
     push!(dict, "descr" => (e, T))
   end
   if m[:fortran_order] != nothing
@@ -254,7 +247,6 @@ function parsedict(s)
     shape = collect(parse(BigInt, m2.match) for m2 in eachmatch(number_regex, m[:shape]))
     push!(dict, "shape" => shape)
   end
-
   return dict
 end
 
@@ -265,8 +257,6 @@ function writeheader(endianness :: Endianness, T :: DataType, shape, fortran_ord
   if sizeof(T) == 1
     endianness = NoEndian
   end
-  dt = dt_from_T(T)
-  @assert typeof(dt) != Error
   dictstring = Array{UInt8,1}("{'descr': '$(String(endianness))$(dt_from_T(T))', 'fortran_order': $(fortran_order_string), 'shape': $(tuplestring)}")
   length(dictstring) < 2^16 - 16 || error("For some unfathomable reason, the size of the header string exceeds 4 KiB.")
   if (length(dictstring) + 11) % 16 != 0 # Note: 11 = length(preheaderstring) + length(b"\n")

@@ -26,31 +26,31 @@ using Random: AbstractRNG, randexp
 using RandomizedPropertyTest
 
 @testset "Test header parser" begin
-  using Npy.Header: Error
+  using Npy.Header: ParseError
 
   @testset "Empty dictionary" begin
-    @test Npy.Header.parsedict("{}") isa Error
+    @test_throws ParseError Npy.Header.parsedict("{}")
     @test Npy.Header.parsedict("{}\n") == Dict()
     @test Npy.Header.parsedict("{ \t \n } \n   \n") == Dict()
-    @test Npy.Header.parsedict("{\n") isa Error
-    @test Npy.Header.parsedict("\n") isa Error
+    @test_throws ParseError Npy.Header.parsedict("{\n")
+    @test_throws ParseError Npy.Header.parsedict("\n")
   end
 
   @testset "fortran_order dictionary" begin
     @test Npy.Header.parsedict("{'fortran_order': True}\n") == Dict("fortran_order" => true)
     @test Npy.Header.parsedict("""{"fortran_order": False}\n""") == Dict("fortran_order" => false)
-    @test Npy.Header.parsedict("{'fortran_order': 17}\n") isa Error
-    @test Npy.Header.parsedict("{'fortran_order': \"seventeen\"}\n") isa Error
+    @test_throws ParseError Npy.Header.parsedict("{'fortran_order': 17}\n")
+    @test_throws ParseError Npy.Header.parsedict("{'fortran_order': \"seventeen\"}\n")
   end
 
   @testset "descr dictionary" begin
-    @test Npy.Header.parsedict("{'descr': |U3}\n") isa Error
-    @test Npy.Header.parsedict("{'descr': |S3}\n") isa Error
-    @test Npy.Header.parsedict("{'descr': |O}\n") isa Error
-    @test Npy.Header.parsedict("{'descr': =f8}\n") isa Error
-    @test Npy.Header.parsedict("{'descr': >f3}\n") isa Error
-    @test Npy.Header.parsedict("{'descr': (2, 5)}\n") isa Error
-    @test Npy.Header.parsedict("{'descr': True}\n") isa Error
+    @test_throws ParseError Npy.Header.parsedict("{'descr': |U3}\n")
+    @test_throws ParseError Npy.Header.parsedict("{'descr': |S3}\n")
+    @test_throws ParseError Npy.Header.parsedict("{'descr': |O}\n")
+    @test_throws ParseError Npy.Header.parsedict("{'descr': =f8}\n")
+    @test_throws ParseError Npy.Header.parsedict("{'descr': >f3}\n")
+    @test_throws ParseError Npy.Header.parsedict("{'descr': (2, 5)}\n")
+    @test_throws ParseError Npy.Header.parsedict("{'descr': True}\n")
     @test Npy.Header.parsedict("""{'descr': ">f8"}\n""") == Dict("descr" => (Npy.Header.BigEndian, Float64))
     @test Npy.Header.parsedict("""{"descr": '<i4'}\n""") == Dict("descr" => (Npy.Header.LittleEndian, Int32))
     @test Npy.Header.parsedict("{'descr': '|i1'}\n") == Dict("descr" => (Npy.Header.NoEndian, Int8))
@@ -63,13 +63,13 @@ using RandomizedPropertyTest
     @test Npy.Header.parsedict("{'shape': (25,)}\n") == Dict("shape" => [25])
     @test Npy.Header.parsedict("{'shape': (25, 18)}\n") == Dict("shape" => [25, 18])
     @test Npy.Header.parsedict("{'shape': (25, 18,)}\n") == Dict("shape" => [25, 18])
-    @test Npy.Header.parsedict("{'shape': (25, true,)}\n") isa Error
+    @test_throws ParseError Npy.Header.parsedict("{'shape': (25, true,)}\n")
     @test Npy.Header.parsedict("{'shape': (1, 2)}\n") == Dict("shape" => [1, 2])
     @test Npy.Header.parsedict("{'shape': (1, 2,)}\n") == Dict("shape" => [1, 2])
     @test Npy.Header.parsedict("{'shape': (1, 3 , 5, 7, 11, 2134098712768342839871623947863782986328761,)}\n") == Dict("shape" => BigInt[1, 3, 5, 7, 11, 2134098712768342839871623947863782986328761])
-    @test Npy.Header.parsedict("{'shape': (,)}\n") isa Error
-    @test Npy.Header.parsedict("{'shape': (1, 2, 'xyz', 4)}\n") isa Error
-    @test_broken Npy.Header.parsedict("{'shape': (1 2 3)}\n") isa Error
+    @test_throws ParseError Npy.Header.parsedict("{'shape': (,)}\n")
+    @test_throws ParseError Npy.Header.parsedict("{'shape': (1, 2, 'xyz', 4)}\n")
+    @test_broken #= @test_throws ParseError =# ( try Npy.Header.parsedict("{'shape': (1 2 3)}\n"); false; catch e; true; end)
   end
 
   @testset "Complete dictionary" begin
@@ -77,7 +77,7 @@ using RandomizedPropertyTest
     @test Npy.Header.parsedict("{ 'shape': (2,3,),    'descr':'|b1', \t'fortran_order': \nTrue,}\t\n\n") == Dict("descr" => (Npy.Header.NoEndian, Bool), "fortran_order" => true, "shape" => BigInt[2, 3])
     @test Npy.Header.parsedict("""{'shape': (3, 2, 6, 1092, 183,), 'fortran_order': False, "descr": '<c8'}\n\t\n""") == Dict("shape" => [3, 2, 6, 1092, 183], "fortran_order" => false, "descr" => (Npy.Header.LittleEndian, ComplexF32))
 
-    @test_broken Npy.Header.parsedict("""{'shape': (1 9 42) "fortran_order": True "descr": '>u2'}\n""") isa Error
+    @test_broken #= @test_throws ParseError =# ( try Npy.Header.parsedict("""{'shape': (1 9 42) "fortran_order": True "descr": '>u2'}\n"""); false; catch e; true; end )
   end
 end
 

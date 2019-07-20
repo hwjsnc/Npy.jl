@@ -35,7 +35,7 @@ import Mmap.sync!
 
 include("Header.jl")
 
-using .Header: Endianness, LittleEndian, BigEndian, NoEndian
+using .Header: ParseError, Endianness, LittleEndian, BigEndian, NoEndian
 
 
 export NpyArray, sync!
@@ -65,6 +65,8 @@ When no reference to a particular `NpyArray` remains, the memory is unmapped and
 Read a .npy file `f` or `fn`.
 The array entries may be changed if and only if `f` is writable or `write == true` (by default, `write == false`).
 To check if an existing `NpyArray` is mutable, use the function `iswritable`.
+
+Constructors may throw an `Npy.ParseError` if the file is invalid or unsupported.
 
     NpyArray(f :: IOStream, datatype, shape)
     NpyArray(fn :: AbstractString, datatype, shape)
@@ -132,7 +134,6 @@ struct NpyArray{T, N} <: AbstractArray{T,N}
   function NpyArray(f :: IOStream)
     data = Mmap.mmap(f, Array{UInt8,1}, fsize(f), 0; grow=false, shared=true)
     header = Header.parseheader(data)
-    typeof(header) != Header.Error || error("Error at offset $(header.offset) while parsing file header: $(header.msg).")
     length(data) == BigInt(header.data_offset) - 1 + prod(BigInt.(header.shape)) * BigInt(sizeof(header.datatype)) || error("File size does not match header size + data size.")
     length(data) == UInt64(header.data_offset) - 1 + prod(UInt64.(header.shape)) * UInt64(sizeof(header.datatype)) || throw(OverflowError("Somehow, the array size is too large for UInt64."))
     return new{header.datatype, length(header.shape)}(header.endianness, header.fortran_order, tuple(UInt64.(header.shape)...), data, header.data_offset, iswritable(f))

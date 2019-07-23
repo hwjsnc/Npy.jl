@@ -134,4 +134,3 @@ TODO
 - fuzz?
 - test on big endian
 - re-check everything
-- check if rewriting (parts of) the constructors (with less indirection?) can give better cold performance

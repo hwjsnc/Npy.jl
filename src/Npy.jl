@@ -138,32 +138,28 @@ struct NpyArray{T, N} <: AbstractArray{T,N}
     length(data) == UInt64(header.data_offset) - 1 + prod(UInt64.(header.shape)) * UInt64(sizeof(header.datatype)) || throw(OverflowError("Somehow, the array size is too large for UInt64."))
     return new{header.datatype, length(header.shape)}(header.endianness, header.fortran_order, tuple(UInt64.(header.shape)...), data, header.data_offset, iswritable(f))
   end
-end
 
-
-function NpyArray(f :: IOStream, type :: T, shape) where {T <: SupportedTypesTypes}
-  # Write array, elements initialized to zero (unless the file already contains data)
-  eltype(shape) <: Integer && all(x -> x > 0, shape) || error("Invalid dimensions")
-  iswritable(f) || error("File is not writable")
-  header = Header.writeheader(BigEndian, type, shape, false)
-  filesize = prod(BigInt.(shape)) * sizeof(type) + length(header)
-  truncate(f, filesize)
-  seek(f, 0)
-  write(f, header) == length(header) || error("Short write")
-  return NpyArray(f) # parse the header again; this is inefficient, but who cares?
+  function NpyArray(f :: IOStream, T :: x, shape) :: NpyArray{T,length(shape)} where {x <: SupportedTypesTypes}
+    iswritable(f) || error("File is not writable")
+    endianness = if sizeof(T) == 1; NoEndian; else BigEndian; end
+    fortran_order = false
+    all(x -> isinteger(x) && x > 0, shape) || error("Invalid dimensions")
+    # Write array, elements initialized to zero (unless the file already contains data)
+    header = Header.writeheader(endianness, T, shape, fortran_order)
+    filesize = prod(BigInt.(shape)) * sizeof(T) + length(header)
+    truncate(f, filesize)
+    # Mmap the file
+    data = Mmap.mmap(f, Array{UInt8,1}, fsize(f), 0; grow=false, shared=true)
+    data[1:length(header)] = header
+    return new{T,length(shape)}(endianness, fortran_order, shape, data, length(header)+1, true)
+  end
 end
 
 
 function NpyArray(f :: IOStream, arr :: AbstractArray{T,N}) where {T <: SupportedTypeUnion, N}
-  # Save arr to a newly created file f
-  iswritable(f) || error("File is not writable")
-  header = Header.writeheader(BigEndian, T, size(arr), false)
-  filesize = prod(BigInt.(size(arr))) * sizeof(T) + length(header) # XXX: Here we assume standard (1-based) array axes
-  truncate(f, filesize)
-  seek(f, 0)
-  write(f, header) == length(header) || error("Short write")
-  npy_arr = NpyArray(f)
+  npy_arr = NpyArray(f, T, size(arr))
   npy_arr .= arr
+  return npy_arr
 end
 
 

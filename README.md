@@ -13,7 +13,7 @@ Test status: [![builds.sr.ht status](https://builds.sr.ht/~quf/Npy.jl/archlinux.
 Examples
 --------
 
-- Create (or overwrite) a .npy file with data from a regular `Array`, then force the changes to disk.
+- Create (or overwrite) a .npy file with data from a regular `Array`, then force the changes to disk immediately.
 
 ```jldoctest
 julia> using Npy: NpyArray, sync!
@@ -28,7 +28,6 @@ julia> sync!(npy_arr)
 
 - First create a file, fill it with ascending integers and alternating imaginary part, then close it.
   Afterwards, open it again, and compute the sum of the entries.
-  Finally, open it yet again, and set every entry to zero.
 
 ```jldoctest
 julia> using Npy: NpyArray
@@ -39,13 +38,9 @@ julia> NpyArray("def.npy", Complex{Float32}, (4, 5, 7)) do arr
 
 julia> sum(NpyArray("def.npy")) == (4*5*7) * (4*5*7+1) / 2
 true
-
-julia> NpyArray("def.npy"; write=true) do arr
-         arr .= 0
-       end;
 ```
 
-For more information on the `NpyArray` constructors, see its Julia docstring.
+For more information on how to create or read an `NpyArray`, see its Julia docstring.
 
 
 Non-Features
@@ -53,9 +48,9 @@ Non-Features
 
 `Npy.jl` does not and will not support the following:
 
-- compressed archives (file ending ".npz")
-- bytestrings, unicode strings, objects
-- 'host endianness' ("`=`" in `descr`)
+- compressed archives (file ending ".npz") - they are impossible to mmap efficiently.
+- bytestrings, unicode strings, objects - they are impossible to mmap efficiently.
+- 'host endianness' ("`=`" in `descr`) - it is a terrible idea to use this for data storage.
 
 
 Compatibility
@@ -69,19 +64,18 @@ The current version in 0.1.0.
 Bugs and caveats
 ----------------
 
-- This package does not support writing .npy version 2.0.
+- `Npy.jl` does not support writing .npy version 2.0.
   This is not expected to be a problem as long as the data size does not reach approximately 10^6500 bytes (or the data files have more than approximately 2900 dimensions).
 - Creating .npy files from an `AbstractArray` with non-standard axes is neither supported nor tested and may silently eat your data.
-  Here be dragons.
 - `Npy.jl` should work on big-endian architectures, but this has not been tested.
 - Do not attempt to use linear indices with `NpyArray`s!
   Especially do not use the same linear indices of a particular `NpyArray` with any other `AbstractArray` (including other `NpyArray`s)!
   `.npy` files may be saved in either row major ("C contiguous") or column major ("Fortran contiguous", Julia convention) order.
-  Using a linear index corresponding to one serialization order with an array of the other serialization order (and same shape) is incorrect, and impossible to detect.
+  Using a linear index corresponding to one serialization order with an array of the other serialization order (and same shape) is incorrect, and impossible to detect in general.
   Using `CartesianIndices` is perfectly fine and is automatically used when broadcasting or looping over an `NpyArray`.
   If you need linear indexing, use `collect` to copy its data to a normal Julia `Array`.
 - "Cold" performance is a bit slow:
-  The first `NpyArray("file")` takes around one second (on a slow VPS).
+  Opening an `NpyArray` for the first time takes around one second (on a slow VPS).
   Opening another `NpyArray` afterwards takes one or two hundred microseconds.
 - There are no performance benchmarks available.
   To give a rough impression:

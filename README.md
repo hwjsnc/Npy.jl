@@ -69,7 +69,6 @@ The current version in 0.1.0.
 Bugs and caveats
 ----------------
 
-- One dimensional `NpyArray` just show up as `#undef` arrays in the REPL, even though `axes`, `getindex`, etc. all work.
 - This package does not support writing .npy version 2.0.
   This is not expected to be a problem as long as the data size does not reach approximately 10^6500 bytes (or the data files have more than approximately 2900 dimensions).
 - Creating .npy files from an `AbstractArray` with non-standard axes is neither supported nor tested and may silently eat your data.
@@ -136,4 +135,3 @@ TODO
 - test on big endian
 - re-check everything
 - check if rewriting (parts of) the constructors (with less indirection?) can give better cold performance
-- fix `#undef` bug for 1d NpyArray.

@@ -224,7 +224,7 @@ IndexStyle(arr :: NpyArray) = IndexCartesian()
 size(arr :: NpyArray, args...) = arr.shape
 
 
-function getindex(arr :: NpyArray{T,N}, i :: Integer) :: T where {T<:SupportedTypeUnion,N}
+function do_getindex(arr :: NpyArray{T,N}, i :: Integer) :: T where {T<:SupportedTypeUnion,N}
   x = unsafe_load(getptr(arr, i))
   return if arr.endianness == LittleEndian
     x_ = ltoh(x)
@@ -238,7 +238,7 @@ function getindex(arr :: NpyArray{T,N}, i :: Integer) :: T where {T<:SupportedTy
 end
 
 
-function setindex!(arr :: NpyArray{T,N}, x, i :: Integer) :: T where {T<:SupportedTypeUnion,N}
+function do_setindex!(arr :: NpyArray{T,N}, x, i :: Integer) :: T where {T<:SupportedTypeUnion,N}
   iswritable(arr) || throw(ReadOnlyMemoryError())
   x_ = convert(T, x)
   if arr.endianness == LittleEndian
@@ -254,13 +254,28 @@ function setindex!(arr :: NpyArray{T,N}, x, i :: Integer) :: T where {T<:Support
 end
 
 
-function getindex(arr :: NpyArray{T,N}, i1 :: Integer, inds...) :: T where {T<:SupportedTypeUnion,N}
-  return getindex(arr, flatten(arr, i1, inds...))
+function getindex(arr :: NpyArray{T,N}, i :: Integer) :: T where {T<:SupportedTypeUnion,N}
+  return do_getindex(arr, i)
 end
 
 
-function setindex!(arr :: NpyArray{T,N}, x, i1 :: Integer, inds...) :: T where {T<:SupportedTypeUnion,N}
-  return setindex!(arr, x, flatten(arr, i1, inds...))
+function getindex(arr :: NpyArray{T,N}, inds :: Vararg{I,N}) :: T where {T<:SupportedTypeUnion,I<:Integer,N}
+  if N == 1
+    i = inds[1]
+  else
+    i = flatten(arr, inds...)
+  end
+  return do_getindex(arr, i)
+end
+
+
+function setindex!(arr :: NpyArray{T,N}, x, inds :: Vararg{I,N}) :: T where {T<:SupportedTypeUnion,I<:Integer,N}
+  if N == 1
+    i = inds[1]
+  else
+    i = flatten(arr, inds...)
+  end
+  return do_setindex!(arr, x, flatten(arr, inds...))
 end
 
 

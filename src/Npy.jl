@@ -66,7 +66,7 @@ Read a .npy file `f` or `fn`.
 The array entries may be changed if and only if `f` is writable or `write == true` (by default, `write == false`).
 To check if an existing `NpyArray` is mutable, use the function `iswritable`.
 
-Constructors may throw an `Npy.ParseError` if the file is invalid or unsupported.
+Constructors may throw an `Npy.ParseError` if the file is not a valid .npy file or contains unsupported elements.
 
     NpyArray(f :: IOStream, datatype, shape)
     NpyArray(fn :: AbstractString, datatype, shape)
@@ -74,8 +74,8 @@ Constructors may throw an `Npy.ParseError` if the file is invalid or unsupported
 Create or overwrite an existing file `f` or `fn`.
 The NpyArray will have the given `shape` and `datatype` and will be writable.
 `datatype` needs to be one of the allowed values for `T` listed above.
-If the file did not exist prior to creating it, the array entries are initialized to zero.
-Otherwise, no guarantee is made regarding the array values.
+If the file did not exist prior to opening it this way, the array entries are initialized to zero.
+Otherwise, the array values are unspecified.
 
     NpyArray(f :: IOStream, a :: AbstractArray)
     NpyArray(fn :: IOStream, a :: AbstractArray)
@@ -96,7 +96,7 @@ Examples
 ```jldoctest
 julia> tmpdir = mktempdir(); # create a temporary directory to create files in
 
-julia> npy_arr = NpyArray(tmpdir * "/abc.npy", Float64[23.0 π; NaN exp(-42)]) # Create a new npy file; this may take a while to compile the first time.
+julia> npy_arr = NpyArray(tmpdir * "/abc.npy", Float64[23.0 π; NaN exp(-42)]) # Create a new npy file
 2×2 NpyArray{Float64,2}:
   23.0  3.14159    
  NaN    5.74952e-19
@@ -132,6 +132,7 @@ struct NpyArray{T, N} <: AbstractArray{T,N}
   writable :: Bool
 
   function NpyArray(f :: IOStream)
+    # Open existing file f as an npy array.
     data = Mmap.mmap(f, Array{UInt8,1}, fsize(f), 0; grow=false, shared=true)
     header = Header.parseheader(data)
     length(data) == BigInt(header.data_offset) - 1 + prod(BigInt.(header.shape)) * BigInt(sizeof(header.datatype)) || error("File size does not match header size + data size.")
@@ -140,23 +141,27 @@ struct NpyArray{T, N} <: AbstractArray{T,N}
   end
 
   function NpyArray(f :: IOStream, T :: x, shape) :: NpyArray{T,length(shape)} where {x <: SupportedTypesTypes}
+    # Make existing file f into an npy array.
     iswritable(f) || error("File is not writable")
     endianness = if sizeof(T) == 1; NoEndian; else BigEndian; end
     fortran_order = false
-    all(x -> isinteger(x) && x > 0, shape) || error("Invalid dimensions")
+    all(x -> isinteger(x) && x > 0, shape) || error("Invalid dimensions $shape.")
     # Write array, elements initialized to zero (unless the file already contains data)
     header = Header.writeheader(endianness, T, shape, fortran_order)
     filesize = prod(BigInt.(shape)) * sizeof(T) + length(header)
     truncate(f, filesize)
     # Mmap the file
     data = Mmap.mmap(f, Array{UInt8,1}, fsize(f), 0; grow=false, shared=true)
+    # Write the header
     data[1:length(header)] = header
+    # Create the NpyArray struct
     return new{T,length(shape)}(endianness, fortran_order, shape, data, length(header)+1, true)
   end
 end
 
 
 function NpyArray(f :: IOStream, arr :: AbstractArray{T,N}) where {T <: SupportedTypeUnion, N}
+  # Copy data from arr to the new npy file f
   npy_arr = NpyArray(f, T, size(arr))
   npy_arr .= arr
   return npy_arr
@@ -179,8 +184,8 @@ function NpyArray(fn :: AbstractString, args...)
 end
 
 
-# convenient context manager wrapper (for do-notation)
 function NpyArray(f :: Function, args...; kwargs...)
+  # convenient context manager wrapper (for do-notation)
   arr = NpyArray(args...; kwargs...)
   return try
     f(arr)
@@ -205,16 +210,19 @@ Mmap.sync!(arr :: NpyArray) = Mmap.sync!(arr.data)
 =#
 
 
-# Note:
-# NpyArray does allow fast linear indexing, so it is tempting to set this to IndexLinear().
-# Indeed, the getindex(::NpyArray, ::Integer) and setindex!(::NpyArray, ::Any, Integer) functions perform linear indexing into the mmapped memory.
-# Moreover, the variadic getindex() and setindex!() functions rely on the linear indexing as well.
-# However, setting IndexLinear() here would break broadcasting for C-contiguous NpyArrays.
-# An example:
-# If a = NpyArray(_, [1 2 3; 4 5 6]), then a[1] == a[1,1] == 1, a[2] == a[1,2] == 2, a[3] == a[1,3] == 3, etc.
-# Whereas if b =     [1 2 3; 4 5 6], then  b[1] == b[1,1] == 1, b[2] == b[2,1] == 4, b[3] == b[1,2] == 2, etc.
-# Similarly, broadcasting a .= b would set a[1,1] = 1, a[1,2] = 4, etc.
-IndexStyle(arr :: NpyArray) = IndexCartesian()
+#=
+Note:
+NpyArray does allow fast linear indexing, so it is tempting to set this to IndexLinear().
+Indeed, the getindex(::NpyArray, ::Integer) and setindex!(::NpyArray, ::Any, Integer) functions perform linear indexing into the mmapped memory.
+Moreover, the variadic getindex() and setindex!() functions rely on the linear indexing as well.
+However, setting IndexLinear() here would break broadcasting for C-contiguous NpyArrays.
+
+This is best seen with the following example:
+If a = NpyArray(_, [1 2 3; 4 5 6]), then a[1] == a[1,1] == 1, a[2] == a[1,2] == 2, a[3] == a[1,3] == 3, etc.
+Whereas if b =     [1 2 3; 4 5 6], then  b[1] == b[1,1] == 1, b[2] == b[2,1] == 4, b[3] == b[1,2] == 2, etc.
+Similarly, broadcasting a .= b would set a[1,1] = 1, a[1,2] = 4, etc., which is incorrect.
+=#
+Base.IndexStyle(arr :: NpyArray) = IndexCartesian()
 
 
 Base.size(arr :: NpyArray) = arr.shape

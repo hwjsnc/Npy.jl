@@ -217,7 +217,7 @@ sync!(arr :: NpyArray) = Mmap.sync!(arr.data)
 IndexStyle(arr :: NpyArray) = IndexCartesian()
 
 
-size(arr :: NpyArray, args...) = arr.shape
+Base.size(arr :: NpyArray) = arr.shape
 
 
 function do_getindex(arr :: NpyArray{T,N}, i :: Integer) :: T where {T<:SupportedTypeUnion,N}

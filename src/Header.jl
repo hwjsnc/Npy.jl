@@ -20,7 +20,7 @@ Parse or write an .npy header
 
 Note:
  - The parser assumes ASCII encoding and does not handle escape sequences (which is ok for .npy)
- - Performance is not necessary for this function, since .npy header dictionaries are very small.
+ - Runtime performance is no great concern for these functions, since .npy header dictionaries are very small.
 """
 module Header
 
@@ -55,9 +55,9 @@ function endianness(s :: AbstractString)
   elseif s == "|"
     return NoEndian
   elseif s == "="
-    return throw(ParseError("Host endianness is intentionally unsupported."))
+    throw(ParseError("Host endianness is intentionally unsupported."))
   end
-  return throw(ParseError("Unknown endianness '$s'."))
+  throw(ParseError("Unknown endianness '$s'."))
 end
 
 
@@ -93,7 +93,7 @@ dtypes_T = [
   Complex{Float64},
 ]
 
-# These four cannot be read without parsing (and thus reading) the whole file (as far as the author knows).
+# These three cannot be read without parsing (and thus reading) the whole file (as far as the author knows).
 # They are unsuited to being mmapped and thus are not supported.
 unsupported_datatypes = Dict(
   "U3" => "UTF-8 String",
@@ -171,8 +171,9 @@ Differences are:
 - Comma delimiters are optional.
   They should be mandatory, but the trailing comma needs to be optional.
   It is impossible (?) to achieve both without repeating the key-value regexes.
-  This would increase the regex by a lot and make capturing more difficult.
-- Entries may be repeated; later entries override earlier ones.
+  This would increase the regex size by a lot and make capturing more difficult.
+- Entries may be repeated (it's not clear in the spec if this is allowed).
+  Later entries override earlier ones.
 
 Design note
 -----------
@@ -180,10 +181,10 @@ Design note
 Using this regex to parse the header dictionary is obviously terrible.
 However, it compiles quite quickly (~1 second to parse a header for the first time).
 As an alternative, parsing through recursive descent takes ~5 seconds to compile.
-For an expected usage of opening only a few .npy files per script / REPL session, this can be a significant part of the run time, especially for analysis scripts.
+For an expected usage of opening only a few .npy files per script / REPL session, this can be a significant part of the run time, especially for analysis scripts which should run quickly.
 This long compile time was deemed unacceptable for productive use.
 Instead of using this regex, a parser (combinator) library might be used.
-This would be much cleaner, but would also require a third-party dependency.
+This would be much cleaner, but would also require a third-party dependency, and it is unclear whether first-use time would be similar or better.
 
 Rant
 ----
@@ -231,7 +232,7 @@ dict_regex = r"""
 
 function parsedict(s)
   m = match(dict_regex, s)
-  m != nothing && m.offset == 1 || throw(ParseError("Header dictionary is not valid. If you are sure that it is, please report this error."))
+  m != nothing && m.offset == 1 || throw(ParseError("Header dictionary is not valid. If you are sure that it is (e.g. numpy can read it), please report this error."))
   dict = Dict()
   if m[:endianness] != nothing
     @assert m[:dtype] != nothing
@@ -252,7 +253,7 @@ function parsedict(s)
 end
 
 # Let's cheat.
-# This precompiles the header parser and makes opening the first much quicker, giving a better impression.
+# This precompiles the header parser and makes opening the first file much quicker, giving a better impression.
 # Of course, this comes at the expense of a longer import time.
 _ = parseheader(Vector{UInt8}("\x93NUMPY\1\0\x46\0{'descr': '|b1', 'fortran_order': False, 'shape': (1,1,1)}           \n\0"))
 

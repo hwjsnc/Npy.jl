@@ -275,7 +275,7 @@ function writeheader(endianness :: Endianness, T :: DataType, shape, fortran_ord
   preheaderstring = cat(b"\x93NUMPY\x01\x00", UInt8[headersize & 255, headersize >> 8], dims=1)
   ret = cat(preheaderstring, dictstring, padding, b"\n", dims=1)
   @assert length(ret) % 16 == 0
-  @assert length(ret) < 2^16
+  @assert length(ret) <= 2^16
   return ret
 end
 

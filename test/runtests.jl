@@ -82,7 +82,7 @@ using RandomizedPropertyTest
 end
 
 
-dtypes = [Bool, Int8, Int16, Int32, Int64, UInt8, UInt16, UInt32, UInt64, Float32, Float64, ComplexF32, ComplexF64]
+dtypes = Npy.Header.dtypes_T
 shapes = [(1,), (5,), (1, 1), (2, 3), (2, 3, 5), (1, 3, 5, 7), (2, 3, 5, 7), (1, 2, 3, 5, 7, 9, 11)]
 
 function genarr(T, shape)

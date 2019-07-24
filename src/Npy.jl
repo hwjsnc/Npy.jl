@@ -41,8 +41,8 @@ using .Header: ParseError, Endianness, LittleEndian, BigEndian, NoEndian
 export NpyArray, sync!
 
 
-SupportedTypeUnion = eval(Expr(:curly, Union, (t for t in Header.dtypes_T)...))
-SupportedTypesTypes = eval(Expr(:curly, Union, (Expr(:curly, Type, t) for t in Header.dtypes_T)...))
+SupportedTypeUnion = eval(Expr(:curly, Union, Header.dtypes_T...)) # Union{Bool, ...}
+SupportedTypesTypes = eval(Expr(:curly, Union, (Expr(:curly, Type, t) for t in Header.dtypes_T)...)) # Union{Type{Bool}, ...}
 
 
 #=
@@ -195,9 +195,9 @@ end
 =#
 
 
-isreadable(arr :: NpyArray) = true
-iswritable(arr :: NpyArray) = arr.writable
-sync!(arr :: NpyArray) = Mmap.sync!(arr.data)
+Base.isreadable(arr :: NpyArray) = true
+Base.iswritable(arr :: NpyArray) = arr.writable
+Mmap.sync!(arr :: NpyArray) = Mmap.sync!(arr.data)
 
 
 #=
@@ -250,27 +250,17 @@ function do_setindex!(arr :: NpyArray{T,N}, x, i :: Integer) :: T where {T<:Supp
 end
 
 
-function getindex(arr :: NpyArray{T,N}, i :: Integer) :: T where {T<:SupportedTypeUnion,N}
+function Base.getindex(arr :: NpyArray{T,N}, i :: Integer) :: T where {T<:SupportedTypeUnion,N}
   return do_getindex(arr, i)
 end
 
 
-function getindex(arr :: NpyArray{T,N}, inds :: Vararg{I,N}) :: T where {T<:SupportedTypeUnion,I<:Integer,N}
-  if N == 1
-    i = inds[1]
-  else
-    i = flatten(arr, inds...)
-  end
-  return do_getindex(arr, i)
+function Base.getindex(arr :: NpyArray{T,N}, inds :: Vararg{I,N}) :: T where {T<:SupportedTypeUnion,I<:Integer,N}
+  return do_getindex(arr, flatten(arr, inds...))
 end
 
 
-function setindex!(arr :: NpyArray{T,N}, x, inds :: Vararg{I,N}) :: T where {T<:SupportedTypeUnion,I<:Integer,N}
-  if N == 1
-    i = inds[1]
-  else
-    i = flatten(arr, inds...)
-  end
+function Base.setindex!(arr :: NpyArray{T,N}, x, inds :: Vararg{I,N}) :: T where {T<:SupportedTypeUnion,I<:Integer,N}
   return do_setindex!(arr, x, flatten(arr, inds...))
 end
 
@@ -309,17 +299,15 @@ end
 
 function flatten(arr :: NpyArray, inds...)
   @boundscheck length(inds) == length(arr.shape) || throw(BoundsError(arr, inds))
+  ind = 0
+  stride = 1
   if arr.fortran_order
-    ind = 0
-    stride = 1
     for (i, x) in enumerate(inds)
       @boundscheck 1 <= x && x <= size(arr)[i] || throw(BoundsError(arr, inds))
       ind += (x - 1) * stride
       stride *= arr.shape[i]
     end
   else
-    ind = 0
-    stride = 1
     for (i, x) in reverse(collect(enumerate(inds)))
       @boundscheck 1 <= x && x <= size(arr)[i] || throw(BoundsError(arr, inds))
       ind += (x - 1) * stride

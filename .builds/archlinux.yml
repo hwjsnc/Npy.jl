@@ -3,6 +3,7 @@ image: archlinux
 packages:
  - gnupg
  - julia
+ - python-numpy
 sources:
  - https://git.sr.ht/~quf/Npy.jl
 tasks:

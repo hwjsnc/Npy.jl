@@ -6,12 +6,12 @@ packages:
 sources:
  - https://git.sr.ht/~quf/Npy.jl
 tasks:
- - check-signature-if-on-master-branch: |
+ - check-signature-if-on-trunk: |
     cd Npy.jl
     gpg --import .builds/signing-keys.asc # Import keys
     gpg --list-keys | grep '^    ' | sed 's/^ *//' | sed 's/$/:6:/' | gpg --import-ownertrust # Set trust to ultimate
-    if test $(git rev-parse HEAD) = $(git rev-parse master); then
-      git verify-commit HEAD # Every commit on master should be signed
+    if test $(git rev-parse HEAD) = $(git rev-parse trunk); then
+      git verify-commit HEAD # Every commit on trunk should be signed
     fi
  - run-tests: |
     cd Npy.jl && julia --project=. -e 'import Pkg; Pkg.test()'

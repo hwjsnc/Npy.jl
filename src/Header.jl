@@ -147,7 +147,7 @@ function parseheader(s)
   if version[1] == 1
     headersize = Int16(s[9]) + Int16(s[10]) << 8
     offset = 11
-  elseif version[1] == 2 or version[1] == 3
+  elseif version[1] == 2 || version[1] == 3
     headersize = Int32(s[9]) + Int32(s[10] << 8) + Int32(s[11] << 16) + Int32(s[12] << 24)
     offset = 13
   end

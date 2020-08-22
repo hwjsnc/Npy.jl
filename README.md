@@ -67,7 +67,7 @@ The current version is 1.0.0.
 Bugs and caveats
 ----------------
 
-- `Npy.jl` does not support writing .npy version 2.0.
+- `Npy.jl` does not support writing .npy version 2.0 or 3.0.
   This is not expected to be a problem as long as the data size does not reach approximately 10^6500 bytes (or the data files have more than approximately 2900 dimensions).
 - Creating .npy files from an `AbstractArray` with non-standard axes is neither supported nor tested and may silently eat your data.
 - `Npy.jl` should work on big-endian architectures, but this has not been tested.
@@ -105,7 +105,7 @@ If not, see https://www.gnu.org/licenses/.
 History
 -------
 
-There have been no changes since version 1.0.0.
+- version 1.1.0 added (partial) read support for numpy version 3.
 
 `Npy.jl` is considered feature-complete by its author.
 No major changes are planned.

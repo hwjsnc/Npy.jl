@@ -142,12 +142,12 @@ function parseheader(s)
   length(s) >= 16 || throw(ParseError("File too short to contain a header."))
   s[1:6] == b"\x93NUMPY" || throw(ParseError("Magic header not present."))
   version = (s[7], s[8])
-  version[1] in [1, 2] || throw(ParseError("Unknown major version $version. Please update Npy.jl or report this error."))
+  version[1] in [1, 2, 3] || throw(ParseError("Unknown major version $version. Please update Npy.jl or report this error."))
   version[2] == 0 || throw(ParseError("Unknown minor version $version. Please update Npy.jl or report this error."))
   if version[1] == 1
     headersize = Int16(s[9]) + Int16(s[10]) << 8
     offset = 11
-  elseif version[1] == 2
+  elseif version[1] == 2 or version[1] == 3
     headersize = Int32(s[9]) + Int32(s[10] << 8) + Int32(s[11] << 16) + Int32(s[12] << 24)
     offset = 13
   end

@@ -61,7 +61,7 @@ Compatibility
 
 `Npy.jl` is written in Julia 1.0 and has no third-party dependencies (except for testing).
 `Npy.jl` follows [semanting versioning v2.0.0](https://semver.org/).
-The current version is 1.0.0.
+The current version is 1.1.0.
 
 
 Bugs and caveats

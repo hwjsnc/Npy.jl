@@ -14,5 +14,14 @@ tasks:
     if test $(git rev-parse HEAD) = $(git rev-parse trunk); then
       git verify-commit HEAD # Every commit on trunk should be signed
     fi
- - run-tests: |
-    cd Npy.jl && julia --project=. -e 'import Pkg; Pkg.test()'
+ - run-tests-current: |
+    cd Npy.jl
+    julia --project=. -e 'import Pkg; Pkg.test()'
+ - download-lts: |
+    gpg --import - < Npy.jl/.builds/juliareleases.asc
+    curl -o julia-1.0.5-linux-x86_64.tar.gz 'https://julialang-s3.julialang.org/bin/linux/x64/1.0/julia-1.0.5-linux-x86_64.tar.gz'
+    curl 'https://julialang-s3.julialang.org/bin/linux/x64/1.0/julia-1.0.5-linux-x86_64.tar.gz.asc' | gpg --verify --trust-model always - julia-1.0.5-linux-x86_64.tar.gz
+    tar xzf julia-1.0.5-linux-x86_64.tar.gz
+ - run-tests-lts: |
+    cd Npy.jl
+    $HOME/julia-1.0.5/bin/julia --project=. -e 'import Pkg; Pkg.test()'

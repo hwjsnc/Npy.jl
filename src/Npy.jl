@@ -212,17 +212,42 @@ Mmap.sync!(arr :: NpyArray) = Mmap.sync!(arr.data)
 
 #=
 Note:
-NpyArray does allow fast linear indexing, so it is tempting to set this to IndexLinear().
+NpyArray does allow fast linear indexing, so it is tempting to set this to IndexLinear() unconditionally.
 Indeed, the getindex(::NpyArray, ::Integer) and setindex!(::NpyArray, ::Any, Integer) functions perform linear indexing into the mmapped memory.
 Moreover, the variadic getindex() and setindex!() functions rely on the linear indexing as well.
-However, setting IndexLinear() here would break broadcasting for C-contiguous NpyArrays.
 
+However, Julia only supports the column major memory layout.
+Its builtin conversion functions assume column major linearisation and there does not seem to be a documented way around that.
+
+For this reason, arrays with row major order emulate row major order; the getindex and setindex! functions with linear indices compute the corresponding Cartesian index under the assumption of column major order, then compute the corresponding linear index under the assumption of row major order.
+This is of course a waste of computational resources, but what ya gonna do.
+
+Without this emulation, mixing linear indices of arrays with differing linearisation order would lead to bugs that are hard to detect and diagnose.
 This is best seen with the following example:
 If a = NpyArray(_, [1 2 3; 4 5 6]), then a[1] == a[1,1] == 1, a[2] == a[1,2] == 2, a[3] == a[1,3] == 3, etc.
 Whereas if b =     [1 2 3; 4 5 6], then  b[1] == b[1,1] == 1, b[2] == b[2,1] == 4, b[3] == b[1,2] == 2, etc.
 Similarly, broadcasting a .= b would set a[1,1] = 1, a[1,2] = 4, etc., which is incorrect.
+
+
+Indexing an NpyArray works like this:
+
+- The user indexes an array by writing arr[i] = x (for example), where i is a CartesianIndex or an Int
+- This is desugared by the language into setindex!(arr::NpyArray, x, i::typeof(i)) (or a similar getindex call).
+- The index is flattened into a linear index, according to the storage order:
+  - For a CartesianIndex, the index is flattened into a linear index according to the storage order of the array - row major or column major.
+    This is done by `flatten`.
+  - For a linear index and a Fortran contiguous array, the linear index is used unchanged.
+  - For a linear index and a C contiguous array, the linear index is first unflattened into a Cartesian index under the assumption of Fortran contiguous order, then re-flattened under the assumption of C contiguous order.
+    This emulation of column major order for row major arrays is expensive.
+    This is done by `unflatten_column_major` and `flatten`.
+  This is done by `getindex` and `setindex!`.
+- The linear index is used as a pointer to the memory mapped data.
+  This is done by `do_getindex` and `do_setindex!`.
+- The value is read/written and converted to/from the host endianness.
+  This is also done by `do_getindex` and `do_setindex!`.
 =#
-Base.IndexStyle(arr :: NpyArray) = IndexCartesian()
+Base.IndexStyle(arr :: NpyArray) = if arr.fortran_order; IndexLinear(); else IndexCartesian() end
+Base.IndexStyle(::Type{NpyArray}) = IndexCartesian()
 
 
 Base.size(arr :: NpyArray) = arr.shape
@@ -259,7 +284,11 @@ end
 
 
 function Base.getindex(arr :: NpyArray{T,N}, i :: Integer) :: T where {T<:SupportedTypeUnion,N}
-  return do_getindex(arr, i)
+  if arr.fortran_order
+    return do_getindex(arr, i)
+  else
+    return do_getindex(arr, flatten(arr, unflatten_column_major(arr, i)...))
+  end
 end
 
 
@@ -268,13 +297,17 @@ function Base.getindex(arr :: NpyArray{T,N}, inds :: Vararg{I,N}) :: T where {T<
 end
 
 
-function Base.setindex!(arr :: NpyArray{T,N}, x, inds :: Vararg{I,N}) :: T where {T<:SupportedTypeUnion,I<:Integer,N}
-  return do_setindex!(arr, x, flatten(arr, inds...))
+function Base.setindex!(arr :: NpyArray{T,N}, x, i :: Integer) :: T where {T<:SupportedTypeUnion,N}
+  if arr.fortran_order
+    return do_setindex!(arr, x, i)
+  else
+    return do_setindex!(arr, x, flatten(arr, unflatten_column_major(arr, i)...))
+  end
 end
 
 
-function Base.LinearIndices(_ :: NpyArray)
-  throw(ArgumentError("Do not use linear indexing with NpyArray."))
+function Base.setindex!(arr :: NpyArray{T,N}, x, inds :: Vararg{I,N}) :: T where {T<:SupportedTypeUnion,I<:Integer,N}
+  return do_setindex!(arr, x, flatten(arr, inds...))
 end
 
 
@@ -323,6 +356,16 @@ function flatten(arr :: NpyArray, inds...)
     end
   end
   return ind + 1
+end
+
+
+function unflatten_column_major(arr :: NpyArray, idx)
+  idx -= 1
+  inds = zeros(Int, length(size(arr)))
+  for (i, n) in enumerate(size(arr))
+    idx, inds[i] = divrem(idx, n)
+  end
+  return Tuple(inds .+ 1)
 end
 
 

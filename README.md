@@ -7,7 +7,7 @@ As a result, very large files (larger than main memory) are supported.
 
 Files with one of the following datatypes are supported: `Bool`, `Int8`, `Int16`, `Int32`, `Int64`, `UInt8`, `UInt16`, `UInt32`, `UInt64`, `Float32`, `Float64`, `Complex{Float32}`, `Complex{Float64}`.
 
-Test status: [![builds.sr.ht status](https://builds.sr.ht/~quf/Npy.jl/archlinux.yml.svg)](https://builds.sr.ht/~quf/Npy.jl/archlinux.yml?)
+Test status: [![builds.sr.ht status](https://builds.sr.ht/~quf/Npy.jl/.svg)](https://builds.sr.ht/~quf/Npy.jl/?)
 
 The `NpyArray` data type which represents a .npy file conforms to the [conventional `AbstractArray` interface](https://docs.julialang.org/en/v1/manual/interfaces/index.html#man-interface-array-1).
 This means that the files can be used and manipulated more or less like a regular `Array`.
